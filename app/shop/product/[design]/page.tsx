@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { supabase } from "@/lib/supabase"
 import { useCartStore } from "@/store/cart-store"
-import { formatCurrency } from "@/lib/shop-utils"
+import { formatCurrency, getProductImage } from "@/lib/shop-utils"
 import { getAvailableSizes } from "@/lib/constants"
 import ColorSwatch from "@/components/shop/color-swatch"
 import SizeSelector from "@/components/shop/size-selector"
@@ -164,19 +164,11 @@ export default function ProductDetailPage() {
           transition={{ duration: 0.5 }}
           className="aspect-[4/5] overflow-hidden rounded-2xl border border-border/30 bg-muted/20"
         >
-          {design.image_url ? (
-            <img src={design.image_url} alt={design.name} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-4">
-              <div className="h-24 w-24 rounded-2xl bg-muted/40 flex items-center justify-center">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground/20">
-                  <path d="M20.38 3.46 16 2 12 5.5 8 2l-4.38 1.46a1 1 0 0 0-.67.78L2 12l1 8.5a1 1 0 0 0 .86.9L8 22l4-3 4 3 4.14-.6a1 1 0 0 0 .86-.9L22 12l-.95-7.76a1 1 0 0 0-.67-.78Z" />
-                  <path d="M12 5.5V22" />
-                </svg>
-              </div>
-              <p className="text-sm text-muted-foreground/30 font-medium">{design.name}</p>
-            </div>
-          )}
+          <img
+            src={getProductImage(0, design.image_url || undefined)}
+            alt={design.name}
+            className="h-full w-full object-cover"
+          />
         </motion.div>
 
         {/* Right: Product info */}

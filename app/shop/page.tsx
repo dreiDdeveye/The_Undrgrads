@@ -22,33 +22,37 @@ export default function ShopPage() {
 
   useEffect(() => {
     async function load() {
-      // Try fetching with shop columns first, fallback to basic query
-      let designResult = await supabase
-        .from("designs")
-        .select("name, price, description, image_url")
-        .eq("is_published", true)
-        .order("name", { ascending: true })
-
-      // If the query fails (columns don't exist yet), fallback to all designs
-      if (designResult.error) {
-        const { data } = await supabase
+      try {
+        // Try fetching with shop columns first, fallback to basic query
+        let designResult = await supabase
           .from("designs")
+          .select("name, price, description, image_url")
+          .order("name", { ascending: true })
+
+        // If the query fails (columns don't exist yet), fallback to all designs
+        if (designResult.error) {
+          const { data } = await supabase
+            .from("designs")
+            .select("name")
+            .order("name", { ascending: true })
+          designResult = {
+            data: (data || []).map((d) => ({ name: d.name, price: 0, description: "", image_url: "" })),
+            error: null,
+          } as any
+        }
+
+        const { data: colorData } = await supabase
+          .from("colors")
           .select("name")
           .order("name", { ascending: true })
-        designResult = {
-          data: (data || []).map((d) => ({ name: d.name, price: 0, description: "", image_url: "" })),
-          error: null,
-        } as any
+
+        setDesigns(designResult.data || [])
+        setColors(colorData?.map((c) => c.name) || [])
+      } catch (err) {
+        console.error("Shop load error:", err)
+      } finally {
+        setLoading(false)
       }
-
-      const { data: colorData } = await supabase
-        .from("colors")
-        .select("name")
-        .order("name", { ascending: true })
-
-      setDesigns(designResult.data || [])
-      setColors(colorData?.map((c) => c.name) || [])
-      setLoading(false)
     }
     load()
   }, [])
