@@ -7,6 +7,7 @@ import FunnelStats from "./funnel-stats"
 import FunnelSplitFeature from "./funnel-split-feature"
 import FunnelLookbook from "./funnel-lookbook"
 import FunnelTestimonials from "./funnel-testimonials"
+import FunnelFAQ from "./funnel-faq"
 import FunnelCommunity from "./funnel-community"
 
 export default function FunnelSection() {
@@ -19,6 +20,7 @@ export default function FunnelSection() {
       <FunnelSplitFeature />
       <FunnelLookbook />
       <FunnelTestimonials />
+      <FunnelFAQ />
       <FunnelCommunity />
     </>
   )
