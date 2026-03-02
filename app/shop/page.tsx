@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import HeroSection from "@/components/shop/hero-section"
+import FunnelSection from "@/components/shop/funnel-section"
 import ProductCard from "@/components/shop/product-card"
 import ProductFilters from "@/components/shop/product-filters"
 
@@ -81,9 +81,9 @@ export default function ShopPage() {
 
   return (
     <>
-      <HeroSection />
+      <FunnelSection />
 
-      <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
+      <section id="catalog" className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
         <ProductFilters
           search={search}
           onSearchChange={setSearch}

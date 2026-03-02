@@ -12,7 +12,7 @@ export default function ShopHeader() {
     <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/shop" className="flex items-center gap-3">
-          <img src="/logo.png" alt="TheUndergrads" className="h-8 w-8 object-contain" />
+          <img src="/logo1.png" alt="TheUndergrads" className="h-8 w-8 object-contain" />
           <span className="text-lg font-bold tracking-tight">TheUndergrads</span>
         </Link>
 

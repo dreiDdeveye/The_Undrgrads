@@ -55,3 +55,12 @@ export function getProductImage(index: number, imageUrl?: string): string {
   if (imageUrl) return imageUrl
   return PRODUCT_IMAGES[index % PRODUCT_IMAGES.length]
 }
+
+export const FEATURED_ITEMS = [
+  { image: PRODUCT_IMAGES[0], label: "Classic White Tee", tag: "Bestseller" },
+  { image: PRODUCT_IMAGES[1], label: "Graphic Statement", tag: "New Drop" },
+  { image: PRODUCT_IMAGES[2], label: "Vintage Wash", tag: "Limited" },
+  { image: PRODUCT_IMAGES[3], label: "Essential Black", tag: "Staple" },
+  { image: PRODUCT_IMAGES[4], label: "Oversized Fit", tag: "Trending" },
+  { image: PRODUCT_IMAGES[5], label: "Streetwear Edit", tag: "Featured" },
+]

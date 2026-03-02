@@ -7,7 +7,8 @@
       "Bash(curl:*)",
       "Bash(git:*)",
       "Bash(cd \"/c/Users/vicen/OneDrive/Desktop/The Undergrads Website/undergrads-dashboard\" && npm run dev 2>&1)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(cd \"/c/Users/vicen/OneDrive/Desktop/The Undergrads Website/undergrads-dashboard\" && npm install embla-carousel-autoplay 2>&1)"
     ]
   }
 }
