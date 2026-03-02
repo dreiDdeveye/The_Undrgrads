@@ -4,9 +4,18 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { X, Plus, FolderPlus } from "lucide-react"
+import { X, Plus, FolderPlus, Folder, AlertTriangle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { toast } from "@/components/ui/use-toast"
+import type { StockItem } from "@/components/stock-management-dialog"
+import {
+  BASE_SIZES,
+  EXTENDED_SIZES,
+  ALL_SIZES,
+  EXTENDED_SIZE_COLORS,
+  LOW_STOCK_THRESHOLD,
+  getAvailableSizes,
+} from "@/lib/constants"
 
 interface AddOrderDialogProps {
   open: boolean
@@ -14,15 +23,9 @@ interface AddOrderDialogProps {
   onAddOrder: (order: any) => void
   colors?: string[]
   designs?: string[]
+  stocks?: StockItem[]
+  onStockUpdate?: () => void
 }
-
-// Size options
-const BASE_SIZES = ["XS", "S", "M", "L", "XL", "2XL"]
-const EXTENDED_SIZES = ["3XL", "4XL", "5XL"]
-const ALL_SIZES = [...BASE_SIZES, ...EXTENDED_SIZES]
-
-// Colors that support extended sizes (3XL-5XL)
-const EXTENDED_SIZE_COLORS = ["Black", "White"]
 
 export default function AddOrderDialog({
   open,
@@ -30,6 +33,8 @@ export default function AddOrderDialog({
   onAddOrder,
   colors = [],
   designs = [],
+  stocks = [],
+  onStockUpdate,
 }: AddOrderDialogProps) {
   const [supabaseDesigns, setSupabaseDesigns] = useState<string[]>([])
   const availableDesigns = supabaseDesigns.length > 0 ? supabaseDesigns : designs
@@ -56,16 +61,14 @@ export default function AddOrderDialog({
 
   const [ordersToAdd, setOrdersToAdd] = useState<any[]>([])
 
-  // Get available sizes based on selected color
-  const getAvailableSizes = (color: string) => {
-    const colorLower = color.toLowerCase()
-    if (EXTENDED_SIZE_COLORS.some((c) => c.toLowerCase() === colorLower)) {
-      return ALL_SIZES
-    }
-    return BASE_SIZES
-  }
-
   const availableSizes = getAvailableSizes(formData.color)
+
+  // Stock lookup
+  const stockMap = new Map<string, number>()
+  stocks.forEach((s) => stockMap.set(`${s.color}|${s.size}`, s.quantity))
+  const getStockQty = (color: string, size: string): number => {
+    return stockMap.get(`${color}|${size}`) || 0
+  }
 
   // Fetch batch folders from database
   const fetchBatchFolders = async () => {
@@ -107,7 +110,7 @@ export default function AddOrderDialog({
         .order("name", { ascending: true })
 
       if (error) {
-        console.error("❌ Error fetching designs:", error.message)
+        console.error("Error fetching designs:", error.message)
       } else if (data) {
         setSupabaseDesigns(data.map((d) => d.name))
       }
@@ -119,7 +122,7 @@ export default function AddOrderDialog({
     }
   }, [open])
 
-  // ✅ RESET FORM WHEN DIALOG OPENS
+  // Reset form when dialog opens
   useEffect(() => {
     if (open) {
       // Reset all form data when dialog opens
@@ -191,7 +194,7 @@ export default function AddOrderDialog({
       setFormData((prev) => ({ ...prev, batchFolder: newFolder }))
       setNewFolderName("")
       setShowNewFolderInput(false)
-      toast({ title: `✅ Folder "${newFolder}" created!` })
+      toast({ title: `Folder "${newFolder}" created!` })
     } catch (err) {
       console.error("Error creating folder:", err)
       const newFolder = newFolderName.trim()
@@ -202,10 +205,17 @@ export default function AddOrderDialog({
     }
   }
 
+  const isCurrentOutOfStock = formData.color && formData.size && getStockQty(formData.color, formData.size) === 0
+
   const handleAddMoreOrder = (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.name || !formData.design || !formData.color || !formData.size) {
       alert("Please fill in all required fields")
+      return
+    }
+
+    if (getStockQty(formData.color, formData.size) === 0) {
+      toast({ title: `${formData.color} - ${formData.size} is out of stock`, variant: "destructive" })
       return
     }
 
@@ -251,13 +261,28 @@ export default function AddOrderDialog({
 
       const { data, error } = await supabase.from("orders").insert(formattedOrders).select()
       if (error) {
-        console.error("❌ Error saving orders:", error.message)
+        console.error("Error saving orders:", error.message)
         alert("Failed to save orders.")
         return
       }
 
-      console.log("✅ Saved to Supabase:", data)
-      toast({ title: "✅ Orders successfully saved!" })
+      console.log("Saved to Supabase:", data)
+
+      // Deduct stock for each order
+      for (const order of formattedOrders) {
+        const currentQty = getStockQty(order.color, order.size)
+        if (currentQty > 0) {
+          await supabase
+            .from("stocks")
+            .upsert(
+              { color: order.color, size: order.size, quantity: Math.max(0, currentQty - 1) },
+              { onConflict: "color,size" }
+            )
+        }
+      }
+      onStockUpdate?.()
+
+      toast({ title: "Orders successfully saved!" })
 
       if (data && Array.isArray(data)) {
         data.forEach((order) => onAddOrder(order))
@@ -342,7 +367,7 @@ export default function AddOrderDialog({
               {/* Batch Folder (dropdown + create) */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium mb-1">
-                  📁 Batch Folder
+                  Batch Folder
                 </label>
                 {showNewFolderInput ? (
                   <div className="flex gap-2">
@@ -390,7 +415,7 @@ export default function AddOrderDialog({
                       <option value="">No Folder (Unassigned)</option>
                       {batchFolders.map((folder) => (
                         <option key={folder} value={folder}>
-                          📦 {folder}
+                          {folder}
                         </option>
                       ))}
                     </select>
@@ -481,6 +506,25 @@ export default function AddOrderDialog({
                     3XL-5XL available on Black & White only
                   </p>
                 )}
+                {/* Stock indicator */}
+                {formData.color && formData.size && (() => {
+                  const qty = getStockQty(formData.color, formData.size)
+                  if (qty === 0) return (
+                    <p className="text-[10px] sm:text-xs text-red-400 mt-1 flex items-center gap-1">
+                      <AlertTriangle size={10} /> Out of stock
+                    </p>
+                  )
+                  if (qty <= LOW_STOCK_THRESHOLD) return (
+                    <p className="text-[10px] sm:text-xs text-yellow-400 mt-1">
+                      Low stock: {qty} remaining
+                    </p>
+                  )
+                  return (
+                    <p className="text-[10px] sm:text-xs text-green-400 mt-1">
+                      In stock: {qty}
+                    </p>
+                  )
+                })()}
               </div>
 
               <div>
@@ -526,7 +570,7 @@ export default function AddOrderDialog({
                 )}
                 {formData.batchFolder && (
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">📁</span>
+                    <Folder className="w-4 h-4 text-indigo-600" />
                     <div>
                       <p className="text-xs text-indigo-600">Folder</p>
                       <p className="text-sm font-bold text-indigo-800">{formData.batchFolder}</p>
@@ -568,8 +612,12 @@ export default function AddOrderDialog({
 
           {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-2 pt-3 sm:pt-4">
-            <Button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-xs sm:text-sm">
-              Add More Order
+            <Button
+              type="submit"
+              disabled={!!isCurrentOutOfStock}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCurrentOutOfStock ? "Out of Stock" : "Add More Order"}
             </Button>
             {ordersToAdd.length > 0 && (
               <Button

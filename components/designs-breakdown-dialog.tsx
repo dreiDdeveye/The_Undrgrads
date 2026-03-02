@@ -86,25 +86,25 @@ export default function DesignsBreakdownDialog({ open, onOpenChange, orders }: D
                   {/* Design Header */}
                   <button
                     onClick={() => toggleDesign(design)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-gray-100 transition"
+                    className="w-full flex items-center justify-between p-3 hover:bg-muted transition"
                   >
                     <div className="flex items-center gap-3">
                       <span className="font-semibold">{design}</span>
-                      <span className="text-sm text-gray-600">({totalQuantity} total)</span>
+                      <span className="text-sm text-muted-foreground">({totalQuantity} total)</span>
                     </div>
                     {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </button>
 
                   {/* Expanded Content: Colors > Sizes */}
                   {isExpanded && (
-                    <div className="bg-gray-50 border-t">
+                    <div className="bg-muted/30 border-t border-border">
                       <div className="p-3 space-y-3">
                         {sortedColors.map((color) => {
                           const sizes = colors[color]
                           const colorTotal = getColorTotal(sizes)
 
                           return (
-                            <div key={color} className="bg-white rounded border p-3">
+                            <div key={color} className="bg-card rounded border border-border p-3">
                               {/* Color Header */}
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
@@ -114,7 +114,7 @@ export default function DesignsBreakdownDialog({ open, onOpenChange, orders }: D
                                   ></div>
                                   <span className="font-medium text-sm">{color}</span>
                                 </div>
-                                <span className="text-sm text-gray-600">{colorTotal} pcs</span>
+                                <span className="text-sm text-muted-foreground">{colorTotal} pcs</span>
                               </div>
 
                               {/* Sizes */}
@@ -126,9 +126,9 @@ export default function DesignsBreakdownDialog({ open, onOpenChange, orders }: D
                                   return (
                                     <div
                                       key={size}
-                                      className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-sm"
+                                      className="flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm"
                                     >
-                                      <span className="text-gray-600">{size}:</span>
+                                      <span className="text-muted-foreground">{size}:</span>
                                       <span className="font-medium">{quantity}</span>
                                     </div>
                                   )

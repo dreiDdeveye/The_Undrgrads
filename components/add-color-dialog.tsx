@@ -4,12 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { X } from "lucide-react"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from "@/lib/supabase"
 
 interface AddColorDialogProps {
   open: boolean
@@ -98,8 +93,8 @@ export default function AddColorDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full shadow-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-card text-card-foreground rounded-lg p-4 sm:p-6 max-w-md w-full shadow-lg max-h-[90vh] overflow-y-auto border border-border">
         <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6">Manage Colors</h2>
 
         <div className="flex gap-2 mb-4">
@@ -115,12 +110,12 @@ export default function AddColorDialog({
         </div>
 
         {existingColors.length === 0 ? (
-          <p className="text-xs sm:text-sm text-gray-500">No colors added yet.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">No colors added yet.</p>
         ) : (
           existingColors.map((color, index) => (
             <div
               key={`${color}-${index}`}
-              className="flex justify-between items-center p-2 bg-gray-100 rounded mb-1"
+              className="flex justify-between items-center p-2 bg-muted rounded mb-1"
             >
               <span>{color}</span>
               <button

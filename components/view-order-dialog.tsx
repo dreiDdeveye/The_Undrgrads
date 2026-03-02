@@ -4,15 +4,38 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 import { motion, AnimatePresence } from "framer-motion"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import {
+  User,
+  X,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  Plus,
+  Save,
+  FileText,
+  ClipboardList,
+  ShoppingBag,
+  Phone,
+  BookOpen,
+  Tag,
+  Hash,
+  Folder,
+  MapPin,
+  CheckCircle,
+  Clock,
+  Pause,
+  AlertTriangle,
+} from "lucide-react"
+import type { StockItem } from "@/components/stock-management-dialog"
+import {
+  EXTENDED_SIZE_COLORS,
+  LOW_STOCK_THRESHOLD,
+  getAvailableSizes,
+} from "@/lib/constants"
 
 interface Order {
   id: number
@@ -47,6 +70,8 @@ interface ViewOrderDialogProps {
   customerOrders: Order[]
   colors: string[]
   designs: string[]
+  stocks?: StockItem[]
+  onStockUpdate?: () => void
   onAddMoreOrder: (order: Order) => void
   onDeleteOrder: (orderId: number) => void
   onEditOrder: (order: Order) => void
@@ -61,31 +86,23 @@ export default function ViewOrderDialog({
   customerOrders,
   colors,
   designs,
+  stocks = [],
+  onStockUpdate,
   onAddMoreOrder,
   onDeleteOrder,
   onEditCustomer,
   onMarkDefective,
 }: ViewOrderDialogProps) {
   const { toast } = useToast()
-  
-  // Size options
-  const BASE_SIZES = ["XS", "S", "M", "L", "XL", "2XL"]
-  const EXTENDED_SIZES = ["3XL", "4XL", "5XL"]
-  const ALL_SIZES = [...BASE_SIZES, ...EXTENDED_SIZES]
-  
-  // Colors that support extended sizes (3XL-5XL)
-  const EXTENDED_SIZE_COLORS = ["Black", "White"]
-  
-  // Get available sizes based on selected color
-  const getAvailableSizes = (color: string) => {
-    const colorLower = color.toLowerCase()
-    if (EXTENDED_SIZE_COLORS.some((c) => c.toLowerCase() === colorLower)) {
-      return ALL_SIZES
-    }
-    return BASE_SIZES
-  }
 
   const sizes = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]
+
+  // Stock lookup
+  const stockMap = new Map<string, number>()
+  stocks.forEach((s) => stockMap.set(`${s.color}|${s.size}`, s.quantity))
+  const getStockQty = (color: string, size: string): number => {
+    return stockMap.get(`${color}|${size}`) || 0
+  }
 
   const [editingCustomer, setEditingCustomer] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
@@ -95,7 +112,7 @@ export default function ViewOrderDialog({
   const [showStatusPopup, setShowStatusPopup] = useState<number | null>(null)
   const [showDefectiveNotePopup, setShowDefectiveNotePopup] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
-  
+
   // Use ref to track if we just added an order
   const justAddedOrder = useRef(false)
 
@@ -130,7 +147,7 @@ export default function ViewOrderDialog({
       batch: customerOrders[0]?.batch || "",
       batch_folder: customerOrders[0]?.batch_folder || "",
     })
-    
+
     // If we just added an order, ensure form stays closed
     if (justAddedOrder.current) {
       setShowAddMoreForm(false)
@@ -140,7 +157,6 @@ export default function ViewOrderDialog({
 
   // Reset ALL form states when dialog opens or customer changes
   useEffect(() => {
-    // Always reset when open changes or customer changes
     setShowAddMoreForm(false)
     setEditingCustomer(false)
     setEditingOrder(null)
@@ -150,8 +166,7 @@ export default function ViewOrderDialog({
     setSelectedOrderId(null)
     setDefectiveNote("")
     justAddedOrder.current = false
-    
-    // Reset new order form
+
     setNewOrder({
       color: colors[0] || "White",
       size: "M",
@@ -164,8 +179,8 @@ export default function ViewOrderDialog({
 
   // Reset size if current size is not available for the selected color (for new order)
   useEffect(() => {
-    const sizes = getAvailableSizes(newOrder.color)
-    if (!sizes.includes(newOrder.size)) {
+    const availSizes = getAvailableSizes(newOrder.color)
+    if (!availSizes.includes(newOrder.size)) {
       setNewOrder((prev) => ({ ...prev, size: "M" }))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,12 +257,12 @@ export default function ViewOrderDialog({
     doc.save(`Invoice_${customer.name}_${invoiceNumber}.pdf`)
   }
 
-  // ✅ Save Customer Info
+  // Save Customer Info
   const handleSaveCustomer = async () => {
     try {
       await supabase
         .from("orders")
-        .update({ 
+        .update({
           phone: customerData.phone,
           facebook: customerData.facebook,
           chapter: customerData.chapter,
@@ -259,15 +274,22 @@ export default function ViewOrderDialog({
 
       onEditCustomer(customerData)
       setEditingCustomer(false)
-      toast({ title: "✅ Customer updated successfully!" })
+      toast({ title: "Customer updated successfully!" })
     } catch (err: any) {
       console.error(err)
       toast({ title: "Error updating customer", variant: "destructive" })
     }
   }
 
-  // ✅ Add More Order
+  const isNewOrderOutOfStock = newOrder.color && newOrder.size && getStockQty(newOrder.color, newOrder.size) === 0
+
+  // Add More Order
   const handleAddOrder = async () => {
+    if (getStockQty(newOrder.color, newOrder.size) === 0) {
+      toast({ title: `${newOrder.color} - ${newOrder.size} is out of stock`, variant: "destructive" })
+      return
+    }
+
     const normalizedStatus = newOrder.paymentStatus.toLowerCase() as "pending" | "partially paid" | "fully paid"
 
     const orderToAdd: Order = {
@@ -309,13 +331,21 @@ export default function ViewOrderDialog({
       return
     }
 
-    // Mark that we just added an order
+    // Deduct stock
+    const currentQty = getStockQty(newOrder.color, newOrder.size)
+    if (currentQty > 0) {
+      await supabase
+        .from("stocks")
+        .upsert(
+          { color: newOrder.color, size: newOrder.size, quantity: Math.max(0, currentQty - 1) },
+          { onConflict: "color,size" }
+        )
+    }
+    onStockUpdate?.()
+
     justAddedOrder.current = true
-    
-    // Hide the form
     setShowAddMoreForm(false)
-    
-    // Reset the form fields
+
     setNewOrder({
       color: colors[0] || "White",
       size: "M",
@@ -324,13 +354,11 @@ export default function ViewOrderDialog({
       price: "",
     })
 
-    toast({ title: "✅ Order added successfully!" })
-    
-    // Trigger parent refresh
+    toast({ title: "Order added successfully!" })
     onAddMoreOrder(orderToAdd)
   }
 
-  // ✅ Edit Existing Order
+  // Edit Existing Order
   const handleEditOrderSave = async () => {
     if (!editingOrder) return
 
@@ -354,11 +382,11 @@ export default function ViewOrderDialog({
       return
     }
 
-    toast({ title: "✅ Order updated successfully!" })
+    toast({ title: "Order updated successfully!" })
     setEditingOrder(null)
   }
 
-  // ✅ Handle Order Status Change
+  // Handle Order Status Change
   const handleOrderStatusChange = async (orderId: number, status: string) => {
     if (status === "defective") {
       setSelectedOrderId(orderId)
@@ -379,7 +407,7 @@ export default function ViewOrderDialog({
         return
       }
 
-      toast({ title: "✅ Order marked as Partially Paid!" })
+      toast({ title: "Order marked as Partially Paid!" })
       setShowStatusPopup(null)
     } else if (status === "for_shipment") {
       const { error } = await supabase
@@ -396,12 +424,12 @@ export default function ViewOrderDialog({
         return
       }
 
-      toast({ title: "✅ Order marked as For Shipment!" })
+      toast({ title: "Order marked as For Shipment!" })
       setShowStatusPopup(null)
     }
   }
 
-  // ✅ Mark Defective with Note
+  // Mark Defective with Note
   const handleMarkDefective = async (orderId: number) => {
     const { error } = await supabase
       .from("orders")
@@ -422,7 +450,7 @@ export default function ViewOrderDialog({
     setSelectedOrderId(null)
     setDefectiveNote("")
     toast({
-      title: "✅ Order marked as defective!",
+      title: "Order marked as defective!",
       description: "It has been moved to the Defective Items list.",
     })
   }
@@ -431,11 +459,11 @@ export default function ViewOrderDialog({
   const getPaymentStatusStyle = (status: string) => {
     switch (status) {
       case "fully paid":
-        return { bg: "bg-green-100", text: "text-green-700", icon: "✅" }
+        return { bg: "bg-green-900/40", text: "text-green-400", Icon: CheckCircle }
       case "partially paid":
-        return { bg: "bg-yellow-100", text: "text-yellow-700", icon: "⏳" }
+        return { bg: "bg-yellow-900/40", text: "text-yellow-400", Icon: Clock }
       default:
-        return { bg: "bg-gray-100", text: "text-gray-700", icon: "⏸️" }
+        return { bg: "bg-muted", text: "text-muted-foreground", Icon: Pause }
     }
   }
 
@@ -457,41 +485,42 @@ export default function ViewOrderDialog({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-xl">👤</span>
+                <User className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white truncate max-w-[200px] sm:max-w-none">
                   {customerData.name || "Customer"}
                 </h2>
-                <p className="text-blue-200 text-sm">{customerOrders.length} order(s) • ₱{totalPrice.toLocaleString()}</p>
+                <p className="text-blue-200 text-sm">{customerOrders.length} order(s) - P{totalPrice.toLocaleString()}</p>
               </div>
             </div>
             <Button
               variant="ghost"
-              className="text-white hover:bg-white/20 text-xl h-10 w-10 p-0"
+              size="icon"
+              className="text-white hover:bg-white/20"
               onClick={() => onOpenChange(false)}
             >
-              ✕
+              <X className="w-5 h-5" />
             </Button>
           </div>
         </div>
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {/* 🧾 Customer Info */}
+          {/* Customer Info */}
           <div className="bg-muted rounded-xl p-4 border border-border">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold flex items-center gap-2">
-                <span>📋</span> Customer Details
+                <ClipboardList className="w-4 h-4" /> Customer Details
               </h3>
               {!editingCustomer && (
-                <Button 
-                  onClick={() => setEditingCustomer(true)} 
-                  variant="outline" 
+                <Button
+                  onClick={() => setEditingCustomer(true)}
+                  variant="outline"
                   size="sm"
-                  className="h-8"
+                  className="h-8 flex items-center gap-1"
                 >
-                  ✏️ Edit
+                  <Pencil className="w-3 h-3" /> Edit
                 </Button>
               )}
             </div>
@@ -529,8 +558,8 @@ export default function ViewOrderDialog({
                   <Input value={customerData.address} onChange={e => setCustomerData({...customerData, address: e.target.value})} placeholder="Address" />
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button onClick={handleSaveCustomer} className="bg-blue-600 hover:bg-blue-700 flex-1">
-                    💾 Save
+                  <Button onClick={handleSaveCustomer} className="bg-blue-600 hover:bg-blue-700 flex-1 flex items-center justify-center gap-1">
+                    <Save className="w-4 h-4" /> Save
                   </Button>
                   <Button onClick={() => setEditingCustomer(false)} variant="outline" className="flex-1">
                     Cancel
@@ -539,45 +568,52 @@ export default function ViewOrderDialog({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground">📱 Phone:</span>
-                  <span className="font-medium break-all">{customerData.phone || "—"}</span>
+                <div className="flex gap-2 items-center">
+                  <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Phone:</span>
+                  <span className="font-medium break-all">{customerData.phone || "--"}</span>
                 </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground">📘 Facebook:</span>
-                  <span className="font-medium break-all">{customerData.facebook || "—"}</span>
+                <div className="flex gap-2 items-center">
+                  <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Facebook:</span>
+                  <span className="font-medium break-all">{customerData.facebook || "--"}</span>
                 </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground">🏷️ Chapter:</span>
-                  <span className="font-medium">{customerData.chapter || "—"}</span>
+                <div className="flex gap-2 items-center">
+                  <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Chapter:</span>
+                  <span className="font-medium">{customerData.chapter || "--"}</span>
                 </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground">🔢 Batch:</span>
-                  <span className="font-medium">{customerData.batch || "—"}</span>
+                <div className="flex gap-2 items-center">
+                  <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Batch:</span>
+                  <span className="font-medium">{customerData.batch || "--"}</span>
                 </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground">📁 Folder:</span>
-                  <span className="font-medium">{customerData.batch_folder || "—"}</span>
+                <div className="flex gap-2 items-center">
+                  <Folder className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Folder:</span>
+                  <span className="font-medium">{customerData.batch_folder || "--"}</span>
                 </div>
-                <div className="flex gap-2 sm:col-span-2">
-                  <span className="text-muted-foreground">📍 Address:</span>
-                  <span className="font-medium break-words">{customerData.address || "—"}</span>
+                <div className="flex gap-2 items-center sm:col-span-2">
+                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Address:</span>
+                  <span className="font-medium break-words">{customerData.address || "--"}</span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* 🧩 Orders List */}
+          {/* Orders List */}
           <div>
             <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <span>🛍️</span> Orders ({customerOrders.length})
+              <ShoppingBag className="w-4 h-4" /> Orders ({customerOrders.length})
             </h3>
             <div className="space-y-3">
               {customerOrders.map(order => {
                 const statusStyle = getPaymentStatusStyle(order.payment_status)
+                const StatusIcon = statusStyle.Icon
                 return (
-                  <div 
-                    key={order.id} 
+                  <div
+                    key={order.id}
                     className="p-4 border border-border rounded-xl bg-card hover:border-blue-300 transition-colors"
                   >
                     {/* Order Header */}
@@ -586,61 +622,61 @@ export default function ViewOrderDialog({
                         {/* Design, Color, Size */}
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           <span className="font-bold text-base truncate max-w-[150px]">{order.design}</span>
-                          <span className="text-muted-foreground">•</span>
+                          <span className="text-muted-foreground">-</span>
                           <span className="text-sm">{order.color}</span>
-                          <span className="text-muted-foreground">•</span>
+                          <span className="text-muted-foreground">-</span>
                           <span className="text-sm font-medium">{order.size}</span>
                         </div>
-                        
+
                         {/* Badges */}
                         <div className="flex flex-wrap gap-2">
                           {order.batch && (
-                            <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">
+                            <span className="text-xs px-2 py-1 rounded-full bg-orange-900/40 text-orange-400">
                               Batch: {order.batch}
                             </span>
                           )}
                           {order.batch_folder && (
-                            <span className="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">
-                              📁 {order.batch_folder}
+                            <span className="text-xs px-2 py-1 rounded-full bg-indigo-900/40 text-indigo-400 flex items-center gap-1">
+                              <Folder className="w-3 h-3" /> {order.batch_folder}
                             </span>
                           )}
-                          <span className={`text-xs px-2 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
-                            {statusStyle.icon} {order.payment_status.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
+                          <span className={`text-xs px-2 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
+                            <StatusIcon className="w-3 h-3" /> {order.payment_status.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
                           </span>
                         </div>
                       </div>
 
                       {/* Price */}
                       <div className="text-right">
-                        <div className="text-lg font-bold text-green-600">₱{order.price.toLocaleString()}</div>
+                        <div className="text-lg font-bold text-green-600">P{order.price.toLocaleString()}</div>
                       </div>
                     </div>
 
                     {/* Action Buttons */}
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 text-xs"
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs flex items-center gap-1"
                         onClick={() => setEditingOrder(order)}
                       >
-                        ✏️ Edit
+                        <Pencil className="w-3 h-3" /> Edit
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
-                        className="h-8 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                        className="h-8 text-xs bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 border-blue-800 flex items-center gap-1"
                         onClick={() => setShowStatusPopup(order.id)}
                       >
-                        🔄 Status
+                        <RefreshCw className="w-3 h-3" /> Status
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
-                        className="h-8 text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                        className="h-8 text-xs bg-red-900/30 hover:bg-red-900/50 text-red-400 border-red-800 flex items-center gap-1"
                         onClick={() => setDeleteConfirmId(order.id)}
                       >
-                        🗑️ Delete
+                        <Trash2 className="w-3 h-3" /> Delete
                       </Button>
                     </div>
                   </div>
@@ -649,18 +685,18 @@ export default function ViewOrderDialog({
             </div>
           </div>
 
-          {/* ➕ Add Order Form */}
+          {/* Add Order Form */}
           {showAddMoreForm && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <h3 className="text-base font-bold text-blue-800 mb-4 flex items-center gap-2">
-                <span>🛍️</span> Add More Order
+            <div className="bg-blue-950/40 border border-blue-800 rounded-xl p-4">
+              <h3 className="text-base font-bold text-blue-300 mb-4 flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4" /> Add More Order
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Design *</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Design *</label>
                   <select
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    className="w-full p-2 border border-input bg-card text-foreground rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                     value={newOrder.design}
                     onChange={(e) => setNewOrder({ ...newOrder, design: e.target.value })}
                   >
@@ -669,9 +705,9 @@ export default function ViewOrderDialog({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Color *</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Color *</label>
                   <select
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    className="w-full p-2 border border-input bg-card text-foreground rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                     value={newOrder.color}
                     onChange={(e) => setNewOrder({ ...newOrder, color: e.target.value })}
                   >
@@ -680,9 +716,9 @@ export default function ViewOrderDialog({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Size *</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Size *</label>
                   <select
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    className="w-full p-2 border border-input bg-card text-foreground rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                     value={newOrder.size}
                     onChange={(e) => setNewOrder({ ...newOrder, size: e.target.value })}
                   >
@@ -691,16 +727,35 @@ export default function ViewOrderDialog({
                   {!EXTENDED_SIZE_COLORS.some(
                     (c) => c.toLowerCase() === newOrder.color.toLowerCase()
                   ) && (
-                    <p className="text-[10px] text-gray-500 mt-1">
+                    <p className="text-[10px] text-muted-foreground mt-1">
                       3XL-5XL available on Black & White only
                     </p>
                   )}
+                  {/* Stock indicator */}
+                  {newOrder.color && newOrder.size && (() => {
+                    const qty = getStockQty(newOrder.color, newOrder.size)
+                    if (qty === 0) return (
+                      <p className="text-[10px] text-red-400 mt-1 flex items-center gap-1">
+                        <AlertTriangle size={10} /> Out of stock
+                      </p>
+                    )
+                    if (qty <= LOW_STOCK_THRESHOLD) return (
+                      <p className="text-[10px] text-yellow-400 mt-1">
+                        Low stock: {qty} remaining
+                      </p>
+                    )
+                    return (
+                      <p className="text-[10px] text-green-400 mt-1">
+                        In stock: {qty}
+                      </p>
+                    )
+                  })()}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Payment Status *</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Payment Status *</label>
                   <select
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    className="w-full p-2 border border-input bg-card text-foreground rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                     value={newOrder.paymentStatus}
                     onChange={(e) => setNewOrder({ ...newOrder, paymentStatus: e.target.value })}
                   >
@@ -711,11 +766,11 @@ export default function ViewOrderDialog({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Price</label>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Price</label>
                   <input
                     type="number"
                     placeholder="Enter price"
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    className="w-full p-2 border border-input bg-card text-foreground rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                     value={newOrder.price}
                     onChange={(e) => setNewOrder({ ...newOrder, price: e.target.value })}
                   />
@@ -723,8 +778,12 @@ export default function ViewOrderDialog({
               </div>
 
               <div className="flex gap-2 mt-4">
-                <Button onClick={handleAddOrder} className="bg-green-600 hover:bg-green-700 flex-1">
-                  ✅ Add Order
+                <Button
+                  onClick={handleAddOrder}
+                  disabled={!!isNewOrderOutOfStock}
+                  className="bg-green-600 hover:bg-green-700 flex-1 flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isNewOrderOutOfStock ? <><AlertTriangle className="w-4 h-4" /> Out of Stock</> : <><CheckCircle className="w-4 h-4" /> Add Order</>}
                 </Button>
                 <Button onClick={() => setShowAddMoreForm(false)} variant="outline" className="flex-1">
                   Cancel
@@ -736,28 +795,28 @@ export default function ViewOrderDialog({
 
         {/* Footer Actions */}
         <div className="p-4 border-t border-border bg-muted/30 flex flex-wrap gap-2">
-          <Button 
-            onClick={() => setShowAddMoreForm(!showAddMoreForm)} 
-            className="bg-green-600 hover:bg-green-700 flex-1 min-w-[120px]"
+          <Button
+            onClick={() => setShowAddMoreForm(!showAddMoreForm)}
+            className="bg-green-600 hover:bg-green-700 flex-1 min-w-[120px] flex items-center justify-center gap-1"
           >
-            {showAddMoreForm ? "Hide Form" : "➕ Add Order"}
+            {showAddMoreForm ? "Hide Form" : <><Plus className="w-4 h-4" /> Add Order</>}
           </Button>
-          <Button 
-            onClick={() => onOpenChange(false)} 
-            variant="outline" 
+          <Button
+            onClick={() => onOpenChange(false)}
+            variant="outline"
             className="flex-1 min-w-[100px]"
           >
             Close
           </Button>
           <Button
             onClick={() => handleGenerateInvoice(customerOrders)}
-            className="bg-blue-600 hover:bg-blue-700 flex-1 min-w-[100px]"
+            className="bg-blue-600 hover:bg-blue-700 flex-1 min-w-[100px] flex items-center justify-center gap-1"
           >
-            🧾 Invoice
+            <FileText className="w-4 h-4" /> Invoice
           </Button>
         </div>
 
-        {/* 📝 Edit Order Modal */}
+        {/* Edit Order Modal */}
         <AnimatePresence>
           {editingOrder && (
             <motion.div
@@ -775,7 +834,7 @@ export default function ViewOrderDialog({
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <span>✏️</span> Edit Order
+                  <Pencil className="w-4 h-4" /> Edit Order
                 </h3>
 
                 <div className="space-y-3">
@@ -837,8 +896,8 @@ export default function ViewOrderDialog({
                 </div>
 
                 <div className="flex gap-2 mt-5">
-                  <Button onClick={handleEditOrderSave} className="bg-blue-600 hover:bg-blue-700 flex-1">
-                    💾 Save
+                  <Button onClick={handleEditOrderSave} className="bg-blue-600 hover:bg-blue-700 flex-1 flex items-center justify-center gap-1">
+                    <Save className="w-4 h-4" /> Save
                   </Button>
                   <Button onClick={() => setEditingOrder(null)} variant="outline" className="flex-1">
                     Cancel
@@ -849,7 +908,7 @@ export default function ViewOrderDialog({
           )}
         </AnimatePresence>
 
-        {/* 🚦 Status Selection Popup */}
+        {/* Status Selection Popup */}
         <AnimatePresence>
           {showStatusPopup && (
             <motion.div
@@ -867,55 +926,55 @@ export default function ViewOrderDialog({
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="font-bold text-lg mb-4 text-center flex items-center justify-center gap-2">
-                  <span>🔄</span> Update Status
+                  <RefreshCw className="w-5 h-5" /> Update Status
                 </h3>
-                
+
                 <div className="space-y-3">
                   {/* For Shipment */}
                   <button
-                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-400 transition-all"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-green-800 bg-green-900/30 hover:bg-green-900/50 hover:border-green-600 transition-all"
                     onClick={() => handleOrderStatusChange(showStatusPopup, "for_shipment")}
                   >
-                    <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center">
-                      <span className="text-xl">✅</span>
+                    <div className="w-10 h-10 rounded-full bg-green-900/60 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
                     </div>
                     <div className="text-left">
-                      <div className="font-semibold text-green-700">For Shipment</div>
-                      <div className="text-xs text-green-600">Ready to ship, fully paid</div>
+                      <div className="font-semibold text-green-400">For Shipment</div>
+                      <div className="text-xs text-green-500">Ready to ship, fully paid</div>
                     </div>
                   </button>
 
                   {/* Partial Payment */}
                   <button
-                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-yellow-200 bg-yellow-50 hover:bg-yellow-100 hover:border-yellow-400 transition-all"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-yellow-800 bg-yellow-900/30 hover:bg-yellow-900/50 hover:border-yellow-600 transition-all"
                     onClick={() => handleOrderStatusChange(showStatusPopup, "partial_payment")}
                   >
-                    <div className="w-10 h-10 rounded-full bg-yellow-200 flex items-center justify-center">
-                      <span className="text-xl">⏳</span>
+                    <div className="w-10 h-10 rounded-full bg-yellow-900/60 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-yellow-400" />
                     </div>
                     <div className="text-left">
-                      <div className="font-semibold text-yellow-700">Partial Payment</div>
-                      <div className="text-xs text-yellow-600">Customer has made partial payment</div>
+                      <div className="font-semibold text-yellow-400">Partial Payment</div>
+                      <div className="text-xs text-yellow-500">Customer has made partial payment</div>
                     </div>
                   </button>
 
                   {/* Defective */}
                   <button
-                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-red-200 bg-red-50 hover:bg-red-100 hover:border-red-400 transition-all"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-red-800 bg-red-900/30 hover:bg-red-900/50 hover:border-red-600 transition-all"
                     onClick={() => handleOrderStatusChange(showStatusPopup, "defective")}
                   >
-                    <div className="w-10 h-10 rounded-full bg-red-200 flex items-center justify-center">
-                      <span className="text-xl">⚠️</span>
+                    <div className="w-10 h-10 rounded-full bg-red-900/60 flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 text-red-400" />
                     </div>
                     <div className="text-left">
-                      <div className="font-semibold text-red-700">Defective</div>
-                      <div className="text-xs text-red-600">Item has defects or issues</div>
+                      <div className="font-semibold text-red-400">Defective</div>
+                      <div className="text-xs text-red-500">Item has defects or issues</div>
                     </div>
                   </button>
                 </div>
 
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full mt-4"
                   onClick={() => setShowStatusPopup(null)}
                 >
@@ -926,7 +985,7 @@ export default function ViewOrderDialog({
           )}
         </AnimatePresence>
 
-        {/* 🔴 Defective Note Popup */}
+        {/* Defective Note Popup */}
         <AnimatePresence>
           {showDefectiveNotePopup && selectedOrderId && (
             <motion.div
@@ -948,17 +1007,17 @@ export default function ViewOrderDialog({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                    <span className="text-2xl">⚠️</span>
+                  <div className="w-12 h-12 rounded-full bg-red-900/40 flex items-center justify-center">
+                    <AlertTriangle className="w-6 h-6 text-red-400" />
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Mark as Defective</h3>
                     <p className="text-sm text-muted-foreground">This cannot be undone easily</p>
                   </div>
                 </div>
-                
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-red-700">
+
+                <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-red-400">
                     This order will be moved to the Defective Items list.
                   </p>
                 </div>
@@ -973,14 +1032,14 @@ export default function ViewOrderDialog({
                 />
 
                 <div className="flex gap-2 mt-4">
-                  <Button 
-                    className="bg-red-600 hover:bg-red-700 flex-1"
+                  <Button
+                    className="bg-red-600 hover:bg-red-700 flex-1 flex items-center justify-center gap-1"
                     onClick={() => handleMarkDefective(selectedOrderId)}
                   >
-                    ⚠️ Confirm Defective
+                    <AlertTriangle className="w-4 h-4" /> Confirm Defective
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
                     onClick={() => {
                       setShowDefectiveNotePopup(false)
@@ -996,7 +1055,7 @@ export default function ViewOrderDialog({
           )}
         </AnimatePresence>
 
-        {/* 🗑️ Delete Confirmation */}
+        {/* Delete Confirmation */}
         <AnimatePresence>
           {deleteConfirmId && (
             <motion.div
@@ -1014,8 +1073,8 @@ export default function ViewOrderDialog({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                    <span className="text-2xl">🗑️</span>
+                  <div className="w-12 h-12 rounded-full bg-red-900/40 flex items-center justify-center">
+                    <Trash2 className="w-6 h-6 text-red-400" />
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Delete Order</h3>
@@ -1023,8 +1082,8 @@ export default function ViewOrderDialog({
                   </div>
                 </div>
 
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-red-700">
+                <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-red-400">
                     Are you sure you want to move this order to Trash? You can restore it later from the Trash.
                   </p>
                 </div>
@@ -1037,9 +1096,9 @@ export default function ViewOrderDialog({
                       }
                       setDeleteConfirmId(null)
                     }}
-                    className="bg-red-600 hover:bg-red-700 flex-1"
+                    className="bg-red-600 hover:bg-red-700 flex-1 flex items-center justify-center gap-1"
                   >
-                    🗑️ Delete
+                    <Trash2 className="w-4 h-4" /> Delete
                   </Button>
                   <Button onClick={() => setDeleteConfirmId(null)} variant="outline" className="flex-1">
                     Cancel

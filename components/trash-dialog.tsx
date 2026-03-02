@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Trash2, Folder, Sparkles } from "lucide-react"
 
 export interface Order {
   id: number
@@ -53,8 +54,8 @@ export default function TrashDialog({
       <div className="bg-card text-card-foreground rounded-2xl shadow-xl p-6 max-w-2xl w-full mx-4 my-8 border border-border">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">
-            🗑️ Trash ({trashOrders.length})
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Trash2 className="w-5 h-5" /> Trash ({trashOrders.length})
           </h2>
           <div className="flex gap-2">
             <Button
@@ -80,7 +81,7 @@ export default function TrashDialog({
         <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
           {trashOrders.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
-              <span className="text-4xl block mb-2">🎉</span>
+              <Sparkles className="w-10 h-10 mx-auto mb-2 opacity-50" />
               Trash is empty
             </div>
           ) : (
@@ -98,13 +99,13 @@ export default function TrashDialog({
                       </span>
                     )}
                     {order.batch_folder && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
-                        📁 {order.batch_folder}
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 flex items-center gap-1">
+                        <Folder className="w-3 h-3" /> {order.batch_folder}
                       </span>
                     )}
                   </div>
                   <div className="text-muted-foreground text-xs">
-                    {order.design} • {order.color} • {order.size}
+                    {order.design} - {order.color} - {order.size}
                   </div>
 
                   {/* Defective Note */}

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Trash2, RotateCcw, AlertCircle } from "lucide-react"
+import { Trash2, RotateCcw, AlertCircle, AlertTriangle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 
 export default function DefectiveItemsDialog({
@@ -13,7 +13,7 @@ export default function DefectiveItemsDialog({
   onRetrieveDefective,
   onDeleteDefectivePermanently,
   onDeleteAllDefectivePermanently,
-  onEditDefectiveNote, // ✅ add this function in parent later
+  onEditDefectiveNote,
 }: any) {
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [noteInput, setNoteInput] = useState("")
@@ -37,7 +37,7 @@ export default function DefectiveItemsDialog({
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-green-600">🧩</span>
+              <AlertTriangle className="w-5 h-5 text-yellow-600" />
               <span>Pending Items</span>
               <span className="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
                 {defectiveOrders.length}
@@ -48,12 +48,12 @@ export default function DefectiveItemsDialog({
 
         {defectiveOrders.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground">
-            <p className="text-lg font-medium">No Pendings items found 🧼</p>
+            <p className="text-lg font-medium">No pending items found</p>
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto border border-border rounded-lg">
             <table className="w-auto min-w-full border-collapse text-sm">
-              <thead className="bg-gray-100 text-gray-600 uppercase text-xs font-semibold">
+              <thead className="bg-muted text-muted-foreground uppercase text-xs font-semibold">
                 <tr>
                   <th className="p-3 text-left whitespace-nowrap">Customer</th>
                   <th className="p-3 text-left whitespace-nowrap">Design</th>
@@ -69,31 +69,31 @@ export default function DefectiveItemsDialog({
                   <tr
                     key={o.id}
                     className={`transition-colors ${
-                      index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                    } hover:bg-gray-100`}
+                      index % 2 === 0 ? "bg-card" : "bg-muted/30"
+                    } hover:bg-muted`}
                   >
-                    <td className="p-3 border-t align-top text-gray-800 font-medium whitespace-nowrap">
-                      {o.name || "—"}
+                    <td className="p-3 border-t align-top text-foreground font-medium whitespace-nowrap">
+                      {o.name || "--"}
                     </td>
                     <td className="p-3 border-t align-top whitespace-nowrap">
-                      {o.design || "—"}
+                      {o.design || "--"}
                     </td>
                     <td className="p-3 border-t align-top whitespace-nowrap">
-                      {o.color || "—"}
+                      {o.color || "--"}
                     </td>
                     <td className="p-3 border-t text-center align-top whitespace-nowrap">
-                      {o.size || "—"}
+                      {o.size || "--"}
                     </td>
 
-                    {/* ⚠️ Exclamation Note Button */}
+                    {/* Note Button */}
                     <td className="p-3 border-t text-center align-top whitespace-nowrap">
                       <Button
                         size="sm"
                         variant={o.defective_note ? "destructive" : "outline"}
                         className={`h-8 w-8 p-0 flex items-center justify-center ${
                           o.defective_note
-                            ? "bg-red-100 hover:bg-red-200 text-red-700"
-                            : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+                            ? "bg-red-900/40 hover:bg-red-900/60 text-red-400"
+                            : "bg-muted hover:bg-muted/70 text-muted-foreground"
                         }`}
                         onClick={() => handleOpenNote(o)}
                         title={o.defective_note ? "View or edit note" : "Add note"}
@@ -102,7 +102,7 @@ export default function DefectiveItemsDialog({
                       </Button>
                     </td>
 
-                    {/* Compact aligned action buttons */}
+                    {/* Action buttons */}
                     <td className="p-3 border-t text-center align-top whitespace-nowrap">
                       <div className="flex justify-center items-center gap-2">
                         <Button
@@ -145,12 +145,12 @@ export default function DefectiveItemsDialog({
         )}
       </DialogContent>
 
-      {/* 🧠 Note Popup Dialog */}
+      {/* Note Popup Dialog */}
       {selectedOrder && (
         <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
           <DialogContent className="max-w-sm rounded-xl">
             <DialogHeader>
-              <DialogTitle className="text-lg font-semibold text-gray-800">
+              <DialogTitle className="text-lg font-semibold text-foreground">
                 Defective Note
               </DialogTitle>
             </DialogHeader>

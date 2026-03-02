@@ -10,6 +10,8 @@ import {
   Download,
   Menu,
   FileDown,
+  Package,
+  Settings,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -25,6 +27,7 @@ interface HeaderProps {
   onAddOrder: () => void
   onAddDesign: () => void
   onAddColor: () => void
+  onManageStock: () => void
   onDeleteAll: () => void
   onViewTrash: () => void
   onLogout: () => void
@@ -38,6 +41,7 @@ export default function Header({
   onAddOrder,
   onAddDesign,
   onAddColor,
+  onManageStock,
   onDeleteAll,
   onViewTrash,
   onLogout,
@@ -47,21 +51,21 @@ export default function Header({
   onExportShippingInfo,
 }: HeaderProps) {
   return (
-    <header className="bg-white border-b border-gray-200 shadow-sm">
+    <header className="bg-card border-b border-border shadow-sm">
       <div className="container mx-auto px-3 sm:px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* ✅ Logo + Title */}
+        {/* Logo + Title */}
         <div className="flex items-center gap-3 sm:gap-4">
           <img
             src="/logo.png"
             alt="Logo"
             className="h-10 w-10 sm:h-10 sm:w-10 object-contain"
           />
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             The Undergrads
           </h1>
         </div>
 
-        {/* ✅ Main Actions */}
+        {/* Main Actions */}
         <div className="flex items-center gap-3">
           {/* Keep Add Order separate */}
           <Button
@@ -87,7 +91,9 @@ export default function Header({
 
             <DropdownMenuContent align="end" className="w-56">
               {/* --- Export Group --- */}
-              <DropdownMenuLabel>📦 Export</DropdownMenuLabel>
+              <DropdownMenuLabel className="flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5" /> Export
+              </DropdownMenuLabel>
               <DropdownMenuGroup>
                 <DropdownMenuItem onClick={onExportShippingInfo}>
                   <Download className="mr-2 h-4 w-4 text-green-600" />
@@ -110,7 +116,9 @@ export default function Header({
               <DropdownMenuSeparator />
 
               {/* --- Manage Group --- */}
-              <DropdownMenuLabel>🎨 Manage</DropdownMenuLabel>
+              <DropdownMenuLabel className="flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5" /> Manage
+              </DropdownMenuLabel>
               <DropdownMenuGroup>
                 <DropdownMenuItem onClick={onAddDesign}>
                   <Layers className="mr-2 h-4 w-4 text-indigo-600" />
@@ -119,6 +127,10 @@ export default function Header({
                 <DropdownMenuItem onClick={onAddColor}>
                   <Palette className="mr-2 h-4 w-4 text-green-600" />
                   Add Color
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onManageStock}>
+                  <Package className="mr-2 h-4 w-4 text-blue-600" />
+                  Manage Stock
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onViewTrash}>
                   <Trash2 className="mr-2 h-4 w-4 text-gray-600" />
@@ -133,7 +145,9 @@ export default function Header({
               <DropdownMenuSeparator />
 
               {/* --- System Group --- */}
-              <DropdownMenuLabel>⚙️ System</DropdownMenuLabel>
+              <DropdownMenuLabel className="flex items-center gap-1.5">
+                <Settings className="w-3.5 h-3.5" /> System
+              </DropdownMenuLabel>
               <DropdownMenuGroup>
                 <DropdownMenuItem onClick={onLogout}>
                   <LogOut className="mr-2 h-4 w-4 text-red-600" />
@@ -147,4 +161,3 @@ export default function Header({
     </header>
   )
 }
-

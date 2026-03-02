@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head:*)",
+      "Bash(cd:*)",
+      "Bash(cd \"/c/Users/vicen/OneDrive/Desktop/The Undergrads Website/undergrads-dashboard\" && npx next build 2>&1)",
+      "Bash(curl:*)",
+      "Bash(git:*)",
+      "Bash(cd \"/c/Users/vicen/OneDrive/Desktop/The Undergrads Website/undergrads-dashboard\" && npm run dev 2>&1)"
+    ]
+  }
+}

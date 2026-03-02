@@ -50,7 +50,7 @@ export default function FilterSection({
   }
 
   return (
-    <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 mb-6">
+    <div className="bg-card p-3 sm:p-4 rounded-lg border border-border mb-6">
       <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Filters</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-4">
         <div>
@@ -73,7 +73,7 @@ export default function FilterSection({
               setFilterColor(e.target.value)
               onFilter()
             }}
-            className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md text-xs sm:text-sm"
+            className="w-full px-2 sm:px-3 py-2 border border-input bg-card text-foreground rounded-md text-xs sm:text-sm"
           >
             <option>All</option>
             {[...new Set(colors)].map((c) => (
@@ -91,7 +91,7 @@ export default function FilterSection({
               setFilterSize(e.target.value)
               onFilter()
             }}
-            className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md text-xs sm:text-sm"
+            className="w-full px-2 sm:px-3 py-2 border border-input bg-card text-foreground rounded-md text-xs sm:text-sm"
           >
             <option>All</option>
             {sizes.map((s) => (
@@ -109,7 +109,7 @@ export default function FilterSection({
               setFilterDesign(e.target.value)
               onFilter()
             }}
-            className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md text-xs sm:text-sm"
+            className="w-full px-2 sm:px-3 py-2 border border-input bg-card text-foreground rounded-md text-xs sm:text-sm"
           >
             <option>All</option>
             {designs.map((d) => (
@@ -128,7 +128,7 @@ export default function FilterSection({
               setFilterPaymentStatus(e.target.value)
               onFilter()
             }}
-            className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-md text-xs sm:text-sm"
+            className="w-full px-2 sm:px-3 py-2 border border-input bg-card text-foreground rounded-md text-xs sm:text-sm"
           >
             {paymentStatusOptions.map((status) => (
               <option key={status} value={status}>

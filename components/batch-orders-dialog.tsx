@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "@/components/ui/use-toast"
+import { Folder, FolderOpen, Trash2, X, Plus, Package, Inbox, User } from "lucide-react"
 
 interface Order {
   id: number
@@ -41,15 +42,16 @@ export default function BatchOrdersDialog({
   const [showAddFolderForm, setShowAddFolderForm] = useState(false)
   const [newFolderName, setNewFolderName] = useState("")
   const [folders, setFolders] = useState<string[]>([])
-  
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
+  const [showCustomerOrders, setShowCustomerOrders] = useState(false)
+
   // Delete confirmation states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null)
 
   // Fetch folders from database
-  const fetchFolders = async () => {
+  const fetchFolders = useCallback(async () => {
     try {
-      // Try to fetch from batch_folders table first
       const { data, error } = await supabase
         .from("batch_folders")
         .select("name")
@@ -58,7 +60,6 @@ export default function BatchOrdersDialog({
       if (!error && data && data.length > 0) {
         setFolders(data.map((b) => b.name))
       } else {
-        // Fallback: get unique batch_folder from orders
         const uniqueFolders = Array.from(
           new Set(orders.filter((o) => o.batch_folder).map((o) => o.batch_folder))
         ).sort() as string[]
@@ -66,19 +67,18 @@ export default function BatchOrdersDialog({
       }
     } catch (err) {
       console.error("Error fetching folders:", err)
-      // Fallback: get unique batch_folder from orders
       const uniqueFolders = Array.from(
         new Set(orders.filter((o) => o.batch_folder).map((o) => o.batch_folder))
       ).sort() as string[]
       setFolders(uniqueFolders)
     }
-  }
+  }, [orders])
 
   useEffect(() => {
     if (open) {
       fetchFolders()
     }
-  }, [open, orders])
+  }, [open, fetchFolders])
 
   // Get orders in a specific folder
   const getOrdersInFolder = (folder: string) => {
@@ -88,6 +88,24 @@ export default function BatchOrdersDialog({
   // Get orders without a folder
   const getOrdersWithoutFolder = () => {
     return orders.filter((o) => !o.batch_folder)
+  }
+
+  // Get all orders for a specific customer
+  const getCustomerOrders = (customerName: string) => {
+    return orders.filter((o) => o.name === customerName)
+  }
+
+  // Check if customer has multiple orders
+  const hasMultipleOrders = (customerName: string) => {
+    return orders.filter((o) => o.name === customerName).length > 1
+  }
+
+  // Handle customer name click
+  const handleCustomerClick = (customerName: string) => {
+    if (hasMultipleOrders(customerName)) {
+      setSelectedCustomer(customerName)
+      setShowCustomerOrders(true)
+    }
   }
 
   // Create new folder
@@ -111,7 +129,7 @@ export default function BatchOrdersDialog({
         console.log("batch_folders table may not exist, adding locally")
       }
 
-      toast({ title: `✅ Folder "${newFolderName.trim()}" created!` })
+      toast({ title: `Folder "${newFolderName.trim()}" created successfully` })
       const newFolder = newFolderName.trim()
       setFolders((prev) => [...prev, newFolder].sort())
       setNewFolderName("")
@@ -125,7 +143,7 @@ export default function BatchOrdersDialog({
       setSelectedFolder(newFolder)
       setNewFolderName("")
       setShowAddFolderForm(false)
-      toast({ title: `✅ Folder "${newFolder}" created!` })
+      toast({ title: `Folder "${newFolder}" created successfully` })
     }
   }
 
@@ -149,7 +167,7 @@ export default function BatchOrdersDialog({
       // Try to delete from batch_folders table
       await supabase.from("batch_folders").delete().eq("name", folderToDelete)
 
-      toast({ title: `🗑️ Folder "${folderToDelete}" deleted!` })
+      toast({ title: `Folder "${folderToDelete}" deleted successfully` })
       setSelectedFolder(null)
       setShowDeleteConfirm(false)
       setFolderToDelete(null)
@@ -165,17 +183,31 @@ export default function BatchOrdersDialog({
     }
   }
 
-  // Add order to folder
-  const handleAddOrderToFolder = async (orderId: number, folder: string) => {
+  // Add all orders for a customer to folder
+  const handleAddOrderToFolder = async (orderId: number, folder: string, customerName?: string) => {
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ batch_folder: folder })
-        .eq("id", orderId)
+      if (customerName) {
+        // Move all orders for this customer that are unassigned
+        const customerOrders = orders.filter((o) => o.name === customerName && !o.batch_folder)
+        const ids = customerOrders.map((o) => o.id)
+        if (ids.length === 0) return
 
-      if (error) throw error
+        const { error } = await supabase
+          .from("orders")
+          .update({ batch_folder: folder })
+          .in("id", ids)
 
-      toast({ title: `✅ Order added to ${folder}!` })
+        if (error) throw error
+        toast({ title: `${ids.length} order(s) added to ${folder} successfully` })
+      } else {
+        const { error } = await supabase
+          .from("orders")
+          .update({ batch_folder: folder })
+          .eq("id", orderId)
+
+        if (error) throw error
+        toast({ title: `Order added to ${folder} successfully` })
+      }
       onRefresh()
     } catch (err: any) {
       console.error("Error adding order to folder:", err.message)
@@ -187,17 +219,31 @@ export default function BatchOrdersDialog({
     }
   }
 
-  // Remove order from folder
-  const handleRemoveOrderFromFolder = async (orderId: number) => {
+  // Remove all orders for a customer from folder
+  const handleRemoveOrderFromFolder = async (orderId: number, customerName?: string, folder?: string) => {
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ batch_folder: null })
-        .eq("id", orderId)
+      if (customerName && folder) {
+        // Remove all orders for this customer in this folder
+        const customerOrders = orders.filter((o) => o.name === customerName && o.batch_folder === folder)
+        const ids = customerOrders.map((o) => o.id)
+        if (ids.length === 0) return
 
-      if (error) throw error
+        const { error } = await supabase
+          .from("orders")
+          .update({ batch_folder: null })
+          .in("id", ids)
 
-      toast({ title: "✅ Order removed from folder!" })
+        if (error) throw error
+        toast({ title: `${ids.length} order(s) removed from folder successfully` })
+      } else {
+        const { error } = await supabase
+          .from("orders")
+          .update({ batch_folder: null })
+          .eq("id", orderId)
+
+        if (error) throw error
+        toast({ title: "Order removed from folder successfully" })
+      }
       onRefresh()
     } catch (err: any) {
       console.error("Error removing order:", err.message)
@@ -209,17 +255,31 @@ export default function BatchOrdersDialog({
     }
   }
 
-  // Move order to different folder
-  const handleMoveOrder = async (orderId: number, newFolder: string) => {
+  // Move all orders for a customer to different folder
+  const handleMoveOrder = async (orderId: number, newFolder: string, customerName?: string, currentFolder?: string) => {
     try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ batch_folder: newFolder })
-        .eq("id", orderId)
+      if (customerName && currentFolder) {
+        // Move all orders for this customer from current folder
+        const customerOrders = orders.filter((o) => o.name === customerName && o.batch_folder === currentFolder)
+        const ids = customerOrders.map((o) => o.id)
+        if (ids.length === 0) return
 
-      if (error) throw error
+        const { error } = await supabase
+          .from("orders")
+          .update({ batch_folder: newFolder })
+          .in("id", ids)
 
-      toast({ title: `✅ Order moved to ${newFolder}!` })
+        if (error) throw error
+        toast({ title: `${ids.length} order(s) moved to ${newFolder} successfully` })
+      } else {
+        const { error } = await supabase
+          .from("orders")
+          .update({ batch_folder: newFolder })
+          .eq("id", orderId)
+
+        if (error) throw error
+        toast({ title: `Order moved to ${newFolder} successfully` })
+      }
       onRefresh()
     } catch (err: any) {
       console.error("Error moving order:", err.message)
@@ -240,21 +300,22 @@ export default function BatchOrdersDialog({
         className="bg-card text-card-foreground rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
-        <div className="p-6 border-b border-border bg-gradient-to-r from-indigo-600 to-purple-600">
+        <div className="p-6 border-b border-border bg-card">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-3xl">📁</span>
+              <Folder className="w-8 h-8 text-foreground" />
               <div>
-                <h2 className="text-xl font-bold text-white">Batch Folders</h2>
-                <p className="text-indigo-200 text-sm">Organize orders into folders</p>
+                <h2 className="text-xl font-bold text-foreground">Batch Folders</h2>
+                <p className="text-muted-foreground text-sm">Organize orders into folders</p>
               </div>
             </div>
             <Button
               variant="ghost"
-              className="text-white hover:bg-white/20 text-xl"
+              size="icon"
+              className="text-muted-foreground hover:bg-muted"
               onClick={() => onOpenChange(false)}
             >
-              ✕
+              <X className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -272,7 +333,8 @@ export default function BatchOrdersDialog({
                 className="h-7 px-2 bg-indigo-600 hover:bg-indigo-700"
                 onClick={() => setShowAddFolderForm(true)}
               >
-                + New
+                <Plus className="w-4 h-4 mr-1" />
+                New
               </Button>
             </div>
 
@@ -327,7 +389,7 @@ export default function BatchOrdersDialog({
               }`}
             >
               <div className="flex items-center gap-2">
-                <span className="text-lg">📭</span>
+                <Inbox className="w-5 h-5" />
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold">Unassigned</div>
                   <div className={`text-xs ${selectedFolder === "__unassigned__" ? "text-gray-300" : "text-muted-foreground"}`}>
@@ -359,7 +421,7 @@ export default function BatchOrdersDialog({
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">📦</span>
+                        <Package className="w-5 h-5" />
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold truncate">{folder}</div>
                           <div className={`text-xs ${selectedFolder === folder ? "text-indigo-200" : "text-muted-foreground"}`}>
@@ -380,15 +442,22 @@ export default function BatchOrdersDialog({
               <>
                 {/* Folder Header */}
                 <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-                  <div className="min-w-0">
-                    <h3 className="text-2xl font-bold flex items-center gap-2 break-words">
-                      {selectedFolder === "__unassigned__" ? "📭 Unassigned Orders" : `📦 ${selectedFolder}`}
-                    </h3>
-                    <p className="text-muted-foreground text-sm">
-                      {selectedFolder === "__unassigned__"
-                        ? `${getOrdersWithoutFolder().length} orders without folder`
-                        : `${getOrdersInFolder(selectedFolder).length} orders in this folder`}
-                    </p>
+                  <div className="min-w-0 flex items-center gap-3">
+                    {selectedFolder === "__unassigned__" ? (
+                      <Inbox className="w-6 h-6 text-muted-foreground" />
+                    ) : (
+                      <FolderOpen className="w-6 h-6 text-indigo-600" />
+                    )}
+                    <div>
+                      <h3 className="text-2xl font-bold break-words">
+                        {selectedFolder === "__unassigned__" ? "Unassigned Orders" : selectedFolder}
+                      </h3>
+                      <p className="text-muted-foreground text-sm">
+                        {selectedFolder === "__unassigned__"
+                          ? `${getOrdersWithoutFolder().length} orders without folder`
+                          : `${getOrdersInFolder(selectedFolder).length} orders in this folder`}
+                      </p>
+                    </div>
                   </div>
                   {selectedFolder !== "__unassigned__" && (
                     <Button
@@ -397,7 +466,8 @@ export default function BatchOrdersDialog({
                       onClick={() => handleDeleteClick(selectedFolder)}
                       className="flex-shrink-0"
                     >
-                      🗑️ Delete Folder
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete Folder
                     </Button>
                   )}
                 </div>
@@ -409,9 +479,11 @@ export default function BatchOrdersDialog({
                     : getOrdersInFolder(selectedFolder)
                   ).length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground">
-                      <span className="text-5xl mb-3 block">
-                        {selectedFolder === "__unassigned__" ? "🎉" : "📭"}
-                      </span>
+                      {selectedFolder === "__unassigned__" ? (
+                        <Package className="w-16 h-16 mx-auto mb-3 opacity-50" />
+                      ) : (
+                        <Inbox className="w-16 h-16 mx-auto mb-3 opacity-50" />
+                      )}
                       <p className="font-medium">
                         {selectedFolder === "__unassigned__"
                           ? "All orders are assigned to folders!"
@@ -419,69 +491,333 @@ export default function BatchOrdersDialog({
                       </p>
                       {selectedFolder !== "__unassigned__" && (
                         <p className="text-sm mt-1">
-                          Go to "Unassigned" to add orders to this folder.
+                          Go to &quot;Unassigned&quot; to add orders to this folder.
                         </p>
                       )}
                     </div>
                   ) : (
-                    (selectedFolder === "__unassigned__"
-                      ? getOrdersWithoutFolder()
-                      : getOrdersInFolder(selectedFolder)
-                    ).map((order) => (
-                      <div
-                        key={order.id}
-                        className="p-4 bg-card rounded-lg border border-border hover:border-indigo-400 transition-colors overflow-hidden"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                          {/* Order Info */}
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            {/* Name and badges */}
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                              <span className="font-bold text-lg truncate max-w-[200px]">{order.name}</span>
-                              {order.batch && (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 flex-shrink-0">
-                                  Batch: {order.batch}
-                                </span>
-                              )}
-                              <span
-                                className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                                  order.payment_status === "fully paid"
-                                    ? "bg-green-100 text-green-700"
-                                    : order.payment_status === "partially paid"
-                                    ? "bg-yellow-100 text-yellow-700"
-                                    : "bg-gray-100 text-gray-700"
-                                }`}
-                              >
-                                {order.payment_status}
-                              </span>
-                            </div>
+                    (() => {
+                      // Group orders by customer name and show only first order
+                      const currentOrders = selectedFolder === "__unassigned__"
+                        ? getOrdersWithoutFolder()
+                        : getOrdersInFolder(selectedFolder)
 
-                            {/* Contact info */}
-                            <div className="text-sm text-muted-foreground mb-2 break-words">
-                              <p className="truncate">📱 {order.phone || "No phone"}</p>
-                              <p className="break-words line-clamp-2">📍 {order.address || "No address"}</p>
-                            </div>
+                      const groupedByCustomer = currentOrders.reduce((acc, order) => {
+                        if (!acc[order.name]) {
+                          acc[order.name] = []
+                        }
+                        acc[order.name].push(order)
+                        return acc
+                      }, {} as Record<string, Order[]>)
 
-                            {/* Order details pills */}
-                            <div className="flex flex-wrap gap-2">
-                              <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full font-medium truncate max-w-[150px]">
-                                {order.design}
-                              </span>
-                              <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-purple-100 text-purple-700 rounded-full truncate max-w-[100px]">
-                                {order.color}
-                              </span>
-                              <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
-                                {order.size}
-                              </span>
-                              <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-green-100 text-green-700 rounded-full">
-                                ₱{order.price}
-                              </span>
+                      return Object.entries(groupedByCustomer).map(([customerName, customerOrders]) => {
+                        const firstOrder = customerOrders[0]
+                        return (
+                          <div
+                            key={customerName}
+                            className="p-4 bg-card rounded-lg border border-border hover:border-indigo-400 transition-colors overflow-hidden"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                              {/* Order Info */}
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                {/* Customer Name */}
+                                <div className="mb-2">
+                                  <button
+                                    onClick={() => handleCustomerClick(customerName)}
+                                    className={`font-bold text-lg ${
+                                      hasMultipleOrders(customerName)
+                                        ? "text-indigo-600 hover:text-indigo-700 underline cursor-pointer"
+                                        : "cursor-default"
+                                    }`}
+                                  >
+                                    {customerName}
+                                    {customerOrders.length > 1 && (
+                                      <span className="ml-1 text-xs text-indigo-500">
+                                        ({customerOrders.length} orders in this folder)
+                                      </span>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {/* Order details below name */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {/* Payment status badge */}
+                                  <span
+                                    className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+                                      firstOrder.payment_status === "fully paid"
+                                        ? "bg-green-900/40 text-green-400"
+                                        : firstOrder.payment_status === "partially paid"
+                                        ? "bg-yellow-900/40 text-yellow-400"
+                                        : "bg-muted text-muted-foreground"
+                                    }`}
+                                  >
+                                    {firstOrder.payment_status}
+                                  </span>
+
+                                  {/* Order details pills */}
+                                  <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-indigo-900/40 text-indigo-400 rounded-full font-medium truncate max-w-[150px]">
+                                    {firstOrder.design}
+                                  </span>
+                                  <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-purple-900/40 text-purple-400 rounded-full truncate max-w-[100px]">
+                                    {firstOrder.color}
+                                  </span>
+                                  <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-blue-900/40 text-blue-400 rounded-full">
+                                    {firstOrder.size}
+                                  </span>
+                                  <span className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-green-900/40 text-green-400 rounded-full">
+                                    P{firstOrder.price}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex flex-row gap-2 flex-shrink-0">
+                                {selectedFolder === "__unassigned__" ? (
+                                  <select
+                                    className="text-sm border border-input rounded px-2 py-1 bg-background min-w-[140px]"
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        handleAddOrderToFolder(firstOrder.id, e.target.value, customerName)
+                                        e.target.value = ""
+                                      }
+                                    }}
+                                  >
+                                    <option value="">Add to folder...</option>
+                                    {folders.map((f) => (
+                                      <option key={f} value={f}>
+                                        {f}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <>
+                                    <select
+                                      className="text-sm border border-input rounded px-2 py-1 bg-background min-w-[120px]"
+                                      defaultValue=""
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          handleMoveOrder(firstOrder.id, e.target.value, customerName, selectedFolder)
+                                          e.target.value = ""
+                                        }
+                                      }}
+                                    >
+                                      <option value="">Move to...</option>
+                                      {folders
+                                        .filter((f) => f !== selectedFolder)
+                                        .map((f) => (
+                                          <option key={f} value={f}>
+                                            {f}
+                                          </option>
+                                        ))}
+                                    </select>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-red-400 hover:bg-red-900/30 h-8 text-xs"
+                                      onClick={() => handleRemoveOrderFromFolder(firstOrder.id, customerName, selectedFolder)}
+                                    >
+                                      Remove
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
+                          </div>
+                        )
+                      })
+                    })()
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <Folder className="w-20 h-20 mb-4 opacity-50" />
+                <h3 className="text-xl font-semibold mb-2">Select a Folder</h3>
+                <p className="text-center max-w-sm">
+                  Choose a folder from the sidebar to view and manage orders, or create a new folder to get started.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-border bg-muted/30 flex justify-between items-center flex-shrink-0">
+          <div className="text-sm text-muted-foreground">
+            Total: {orders.length} orders - {folders.length} folders
+          </div>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </div>
+
+        {/* Delete Folder Confirmation Popup */}
+        <AnimatePresence>
+          {showDeleteConfirm && folderToDelete && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
+              onClick={() => {
+                setShowDeleteConfirm(false)
+                setFolderToDelete(null)
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-card text-card-foreground p-6 rounded-xl shadow-2xl max-w-md w-full mx-4 border border-border"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-red-900/40 flex items-center justify-center">
+                    <Trash2 className="w-6 h-6 text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Delete Folder</h3>
+                    <p className="text-sm text-muted-foreground">This action cannot be undone</p>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-red-300">
+                    Are you sure you want to delete the folder <strong>&quot;{folderToDelete}&quot;</strong>?
+                  </p>
+                  {deleteFolderOrderCount > 0 && (
+                    <p className="text-sm text-red-400 mt-2 font-medium">
+                      {deleteFolderOrderCount} order{deleteFolderOrderCount > 1 ? 's' : ''} will be moved to Unassigned.
+                    </p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowDeleteConfirm(false)
+                      setFolderToDelete(null)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    onClick={handleDeleteFolder}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Delete Folder
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Customer Orders Modal */}
+        <AnimatePresence>
+          {showCustomerOrders && selectedCustomer && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
+              onClick={() => {
+                setShowCustomerOrders(false)
+                setSelectedCustomer(null)
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-card text-card-foreground p-6 rounded-xl shadow-2xl max-w-3xl w-full mx-4 border border-border max-h-[80vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-900/40 flex items-center justify-center">
+                      <User className="w-5 h-5 text-indigo-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg">{selectedCustomer}&apos;s Orders</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {getCustomerOrders(selectedCustomer).length} total orders
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setShowCustomerOrders(false)
+                      setSelectedCustomer(null)
+                    }}
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+
+                {/* Orders List */}
+                <div className="space-y-3">
+                  {getCustomerOrders(selectedCustomer).map((order) => (
+                    <div
+                      key={order.id}
+                      className="p-4 bg-muted/50 rounded-lg border border-border"
+                    >
+                      <div className="flex flex-col gap-3">
+                        {/* Order Details */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+                              order.payment_status === "fully paid"
+                                ? "bg-green-900/40 text-green-400"
+                                : order.payment_status === "partially paid"
+                                ? "bg-yellow-900/40 text-yellow-400"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {order.payment_status}
+                          </span>
+                          {order.batch_folder && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-400">
+                              Folder: {order.batch_folder}
+                            </span>
+                          )}
+                          {!order.batch_folder && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                              Unassigned
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Product Details and Actions */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex flex-wrap gap-2">
+                            <span className="text-sm px-3 py-1 bg-indigo-900/40 text-indigo-400 rounded-full font-medium">
+                              {order.design}
+                            </span>
+                            <span className="text-sm px-3 py-1 bg-purple-900/40 text-purple-400 rounded-full">
+                              {order.color}
+                            </span>
+                            <span className="text-sm px-3 py-1 bg-blue-900/40 text-blue-400 rounded-full">
+                              {order.size}
+                            </span>
+                            <span className="text-sm px-3 py-1 bg-green-900/40 text-green-400 rounded-full font-semibold">
+                              P{order.price}
+                            </span>
                           </div>
 
                           {/* Actions */}
-                          <div className="flex flex-row sm:flex-col gap-2 flex-shrink-0">
-                            {selectedFolder === "__unassigned__" ? (
+                          <div className="flex flex-row gap-2 flex-shrink-0">
+                            {!order.batch_folder ? (
                               <select
                                 className="text-sm border border-input rounded px-2 py-1 bg-background min-w-[140px]"
                                 defaultValue=""
@@ -513,7 +849,7 @@ export default function BatchOrdersDialog({
                                 >
                                   <option value="">Move to...</option>
                                   {folders
-                                    .filter((f) => f !== selectedFolder)
+                                    .filter((f) => f !== order.batch_folder)
                                     .map((f) => (
                                       <option key={f} value={f}>
                                         {f}
@@ -533,93 +869,8 @@ export default function BatchOrdersDialog({
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <span className="text-6xl mb-4">📁</span>
-                <h3 className="text-xl font-semibold mb-2">Select a Folder</h3>
-                <p className="text-center max-w-sm">
-                  Choose a folder from the sidebar to view and manage orders, or create a new folder to get started.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-border bg-muted/30 flex justify-between items-center flex-shrink-0">
-          <div className="text-sm text-muted-foreground">
-            Total: {orders.length} orders • {folders.length} folders
-          </div>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </div>
-
-        {/* 🗑️ Delete Folder Confirmation Popup */}
-        <AnimatePresence>
-          {showDeleteConfirm && folderToDelete && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
-              onClick={() => {
-                setShowDeleteConfirm(false)
-                setFolderToDelete(null)
-              }}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-card text-card-foreground p-6 rounded-xl shadow-2xl max-w-md w-full mx-4 border border-border"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                    <span className="text-2xl">🗑️</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg">Delete Folder</h3>
-                    <p className="text-sm text-muted-foreground">This action cannot be undone</p>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-red-800">
-                    Are you sure you want to delete the folder <strong>"{folderToDelete}"</strong>?
-                  </p>
-                  {deleteFolderOrderCount > 0 && (
-                    <p className="text-sm text-red-600 mt-2">
-                      ⚠️ <strong>{deleteFolderOrderCount} order{deleteFolderOrderCount > 1 ? 's' : ''}</strong> will be moved to Unassigned.
-                    </p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setShowDeleteConfirm(false)
-                      setFolderToDelete(null)
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    className="flex-1 bg-red-600 hover:bg-red-700"
-                    onClick={handleDeleteFolder}
-                  >
-                    🗑️ Delete Folder
-                  </Button>
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             </motion.div>

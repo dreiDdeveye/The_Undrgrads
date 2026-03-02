@@ -3,12 +3,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from "@/lib/supabase"
+import { toast } from "@/components/ui/use-toast"
 
 interface AddDesignDialogProps {
   open: boolean
@@ -39,10 +35,10 @@ export default function AddDesignDialog({
 
       onAddDesign(newDesign)
       setNewDesign("")
-      alert("🎨 Design added successfully!")
+      toast({ title: "Design added successfully!" })
     } catch (err: any) {
-      console.error("❌ Error adding design:", err.message)
-      alert("Failed to add design.")
+      console.error("Error adding design:", err.message)
+      toast({ title: "Failed to add design.", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -58,10 +54,10 @@ export default function AddDesignDialog({
       if (error) throw error
 
       onDeleteDesign(design)
-      alert("🗑️ Design deleted successfully!")
+      toast({ title: "Design deleted successfully!" })
     } catch (err: any) {
-      console.error("❌ Error deleting design:", err.message)
-      alert("Failed to delete design.")
+      console.error("Error deleting design:", err.message)
+      toast({ title: "Failed to delete design.", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -73,8 +69,8 @@ export default function AddDesignDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-lg max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-card text-card-foreground rounded-lg p-6 max-w-md w-full shadow-lg max-h-[80vh] overflow-y-auto border border-border">
         <h2 className="text-xl font-bold mb-4">Manage Designs</h2>
 
         {/* Add New Design */}
@@ -102,12 +98,12 @@ export default function AddDesignDialog({
           <label className="block text-sm font-medium mb-2">Existing Designs</label>
           <div className="space-y-2 max-h-60 overflow-y-auto border rounded p-2">
             {(!sortedDesigns || sortedDesigns.length === 0) && (
-              <p className="text-xs text-gray-500">No designs yet.</p>
+              <p className="text-xs text-muted-foreground">No designs yet.</p>
             )}
             {sortedDesigns.map((design) => (
               <div
                 key={design}
-                className="flex justify-between items-center p-2 bg-gray-100 rounded"
+                className="flex justify-between items-center p-2 bg-muted rounded"
               >
                 <span>{design}</span>
                 <Button

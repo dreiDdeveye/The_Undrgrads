@@ -32,11 +32,11 @@ export default function ColorSizeBreakdown({ orders }: ColorSizeBreakdownProps) 
   const colors = Array.from(colorSizeMap.keys()).sort()
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="p-4 bg-gray-50 border-b border-gray-200">
+    <div className="bg-card rounded-lg border border-border overflow-hidden">
+      <div className="p-4 bg-muted border-b border-border">
         <h3 className="font-semibold text-lg">Designs Needed Per Color & Size</h3>
       </div>
-      <div className="divide-y divide-gray-200">
+      <div className="divide-y divide-border">
         {colors.map((color) => {
           const sizeMap = colorSizeMap.get(color)!
           const sizes = Array.from(sizeMap.keys()).sort()
@@ -46,17 +46,17 @@ export default function ColorSizeBreakdown({ orders }: ColorSizeBreakdownProps) 
             <div key={color}>
               <button
                 onClick={() => setExpandedColor(isExpanded ? null : color)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition"
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition"
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-6 h-6 rounded border-2 border-gray-300"
+                    className="w-6 h-6 rounded border-2 border-border"
                     style={{
                       backgroundColor: color.toLowerCase(),
                     }}
                   />
                   <span className="font-medium">{color}</span>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     ({sizes.reduce((sum, size) => sum + sizeMap.get(size)!, 0)} total)
                   </span>
                 </div>
@@ -64,10 +64,10 @@ export default function ColorSizeBreakdown({ orders }: ColorSizeBreakdownProps) 
               </button>
 
               {isExpanded && (
-                <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
+                <div className="bg-muted/30 px-4 py-3 border-t border-border">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     {sizes.map((size) => (
-                      <div key={size} className="p-2 bg-white border border-gray-200 rounded text-center">
+                      <div key={size} className="p-2 bg-card border border-border rounded text-center">
                         <div className="text-sm font-medium">{size}</div>
                         <div className="text-lg font-bold text-blue-600">{sizeMap.get(size)}</div>
                       </div>

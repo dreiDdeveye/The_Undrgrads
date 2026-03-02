@@ -17,26 +17,27 @@ import TShirtsBreakdownDialog from "@/components/tshirts-breakdown-dialog"
 import DesignsBreakdownDialog from "@/components/designs-breakdown-dialog"
 import DefectiveItemsDialog from "@/components/defective-items-dialog"
 import BatchOrdersDialog from "@/components/batch-orders-dialog"
+import StockManagementDialog, { type StockItem } from "@/components/stock-management-dialog"
 import { useRouter } from "next/navigation"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import ColorByDesignChart from "@/components/ColorByDesignChart"
 import { toast } from "@/components/ui/use-toast"
+import { Folder, AlertTriangle } from "lucide-react"
 
+// Unique separator that won't appear in user data
+const SEPARATOR = "|||"
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
-  
-  
 
   // --- Data ---
   const [orders, setOrders] = useState<Order[]>([])
   const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [trashOrders, setTrashOrders] = useState<Order[]>([])
   const [defectiveOrders, setDefectiveOrders] = useState<Order[]>([])
-
 
   const [designs, setDesigns] = useState<string[]>([])
   const [colors, setColors] = useState<string[]>([])
@@ -49,8 +50,7 @@ export default function Home() {
   const [filterDesign, setFilterDesign] = useState("All")
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("All")
   const [currentPage, setCurrentPage] = useState(1)
-  
-  
+
   const [showAddOrderDialog, setShowAddOrderDialog] = useState(false)
   const [showAddDesignDialog, setShowAddDesignDialog] = useState(false)
   const [showAddColorDialog, setShowAddColorDialog] = useState(false)
@@ -59,27 +59,28 @@ export default function Home() {
   const [showDefectiveDialog, setShowDefectiveDialog] = useState(false)
   const [showBatchDialog, setShowBatchDialog] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
-  
-  // ✅ Counter to force ViewOrderDialog remount
+
+  // Counter to force ViewOrderDialog remount
   const [viewDialogKey, setViewDialogKey] = useState(0)
 
   const [showTShirtsBreakdown, setShowTShirtsBreakdown] = useState(false)
   const [showDesignsBreakdown, setShowDesignsBreakdown] = useState(false)
+  const [showStockDialog, setShowStockDialog] = useState(false)
+  const [stocks, setStocks] = useState<StockItem[]>([])
 
   const itemsPerPage = 10
 
   // Payment status options for filter
   const paymentStatusOptions = ["All", "pending", "partially paid", "fully paid"]
 
-  // ✅ Authentication
+  // Authentication
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     if (token && isTokenValid(token)) setIsAuthenticated(true)
     setIsLoading(false)
   }, [])
-  
 
-  // ✅ Defective items
+  // Defective items
   const fetchDefectiveOrders = async () => {
     const { data, error } = await supabase
       .from("orders")
@@ -87,7 +88,7 @@ export default function Home() {
       .eq("is_defective", true)
       .order("id", { ascending: false })
 
-    if (error) console.error("❌ Error fetching defective items:", error)
+    if (error) console.error("Error fetching defective items:", error)
     else setDefectiveOrders(data || [])
   }
 
@@ -107,11 +108,11 @@ export default function Home() {
       )
 
       toast({
-        title: "✅ Note updated successfully!",
+        title: "Note updated successfully!",
         description: "The defective note has been saved.",
       })
     } catch (err: any) {
-      console.error("❌ Error updating defective note:", err.message)
+      console.error("Error updating defective note:", err.message)
       toast({
         title: "Error updating note",
         description: err.message,
@@ -120,10 +121,8 @@ export default function Home() {
     }
   }
 
-  
-
-  // ✅ Export Orders to PDF
-  // ✅ 1. Export: Total T-Shirts Summary (with aligned Size + Color)
+  // Export Orders to PDF
+  // 1. Export: Total T-Shirts Summary (with aligned Size + Color)
   const handleExportTotalPDF = () => {
     if (!orders.length) {
       alert("No orders to export.")
@@ -134,7 +133,7 @@ export default function Home() {
     doc.setFontSize(14)
     doc.text("Total Ordered Tshirts", 14, 15)
 
-    // ✅ Group by color + size
+    // Group by color + size
     const grouped: Record<string, Record<string, number>> = {}
 
     orders.forEach((o) => {
@@ -153,7 +152,7 @@ export default function Home() {
         overallTotal += qty
       })
 
-      // ✅ Add a light green divider after each color group (except last)
+      // Add a light green divider after each color group (except last)
       if (index < arr.length - 1) {
         tableData.push([
           {
@@ -165,7 +164,7 @@ export default function Home() {
       }
     })
 
-    // ✅ Add overall total row
+    // Add overall total row
     tableData.push([
       {
         content: "Overall Total",
@@ -188,9 +187,7 @@ export default function Home() {
     doc.save("Total_Ordered_Tshirts.pdf")
   }
 
-
-
-  // ✅ 2. Export: Orders by Design (aligned columns)
+  // 2. Export: Orders by Design (aligned columns)
   const handleExportByDesignPDF = () => {
     if (!orders.length) {
       alert("No orders to export.")
@@ -201,7 +198,7 @@ export default function Home() {
     doc.setFontSize(14)
     doc.text("Orders by Design", 14, 15)
 
-    // ✅ Group by design → color → size
+    // Group by design > color > size
     const grouped: Record<string, Record<string, Record<string, number>>> = {}
 
     orders.forEach((o) => {
@@ -225,7 +222,7 @@ export default function Home() {
         })
       })
 
-      // ✅ Add light green divider after each design (except last)
+      // Add light green divider after each design (except last)
       if (index < arr.length - 1) {
         tableData.push([
           {
@@ -237,7 +234,7 @@ export default function Home() {
       }
     })
 
-    // ✅ Add Overall Total at bottom
+    // Add Overall Total at bottom
     tableData.push([
       {
         content: "Overall Total",
@@ -260,8 +257,7 @@ export default function Home() {
     doc.save("Orders_By_Design.pdf")
   }
 
-
-  // ✅ 3. Export: Detailed Orders Report (Breakdown by Customer > Design, with Status and DTF/Tshirt checkboxes at end)
+  // 3. Export: Detailed Orders Report
   const handleExportOrdersPDF = () => {
     if (!orders.length) {
       alert("No orders to export.")
@@ -275,7 +271,7 @@ export default function Home() {
     // Group by unique customer identity (name + phone + address)
     const grouped: Record<string, any[]> = {}
     orders.forEach((o) => {
-      const key = `${o.name || "Unknown"}|${o.phone || "NoPhone"}|${o.address || "NoAddress"}`
+      const key = `${o.name || "Unknown"}${SEPARATOR}${o.phone || "NoPhone"}${SEPARATOR}${o.address || "NoAddress"}`
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(o)
     })
@@ -283,7 +279,8 @@ export default function Home() {
     let startY = 25
 
     Object.entries(grouped).forEach(([key, items]) => {
-      const [name, phone, address] = key.split("|")
+      const parts = key.split(SEPARATOR)
+      const name = parts[0]
 
       // Check if we need a new page
       if (startY > 250) {
@@ -323,10 +320,7 @@ export default function Home() {
 
         // Helper function to format status
         const formatStatus = (order: any) => {
-          // Check if defective first
           if (order.is_defective) return "Defective"
-          
-          // Then check payment status
           switch (order.payment_status?.toLowerCase()) {
             case "fully paid":
               return "For Shipment"
@@ -338,7 +332,7 @@ export default function Home() {
           }
         }
 
-        // Table data for this design (Color, Size, Qty, Status, Date, DTF, Tshirt)
+        // Table data for this design
         const tableData = designOrders.map((o) => [
           o.color || "",
           o.size || "",
@@ -359,27 +353,26 @@ export default function Home() {
           alternateRowStyles: { fillColor: [235, 242, 245] },
           margin: { left: 14 },
           columnStyles: {
-            0: { cellWidth: 28 }, // Color
-            1: { cellWidth: 18 }, // Size
-            2: { cellWidth: 15 }, // Qty
-            3: { cellWidth: 28 }, // Status
-            4: { cellWidth: 28 }, // Date
-            5: { cellWidth: 15 }, // DTF checkbox
-            6: { cellWidth: 15 }, // Tshirt checkbox
+            0: { cellWidth: 28 },
+            1: { cellWidth: 18 },
+            2: { cellWidth: 15 },
+            3: { cellWidth: 28 },
+            4: { cellWidth: 28 },
+            5: { cellWidth: 15 },
+            6: { cellWidth: 15 },
           },
         })
 
         startY = (doc as any).lastAutoTable.finalY + 6
       })
 
-      startY += 8 // Extra space between customers
+      startY += 8
     })
 
     doc.save("Customers_Orders.pdf")
   }
 
-
-  // ✅ Export Shipping Info with Text Wrapping
+  // Export Shipping Info with Text Wrapping
   const handleExportShippingInfo = () => {
     if (!orders.length) {
       alert("No shipping information to export.")
@@ -393,7 +386,7 @@ export default function Home() {
     const groupedCustomers: Record<string, { address?: string; phone?: string; totalOrder: number }> = {}
 
     orders.forEach((o) => {
-      const key = `${o.name || "Unknown"}|${o.phone || "NoPhone"}|${o.address || "NoAddress"}`
+      const key = `${o.name || "Unknown"}${SEPARATOR}${o.phone || "NoPhone"}${SEPARATOR}${o.address || "NoAddress"}`
       if (!groupedCustomers[key]) {
         groupedCustomers[key] = {
           address: o.address || "N/A",
@@ -405,7 +398,7 @@ export default function Home() {
     })
 
     const tableData = Object.entries(groupedCustomers).map(([key, info]) => {
-      const [name] = key.split("|")
+      const name = key.split(SEPARATOR)[0]
       return [name, info.address, info.totalOrder, info.phone]
     })
 
@@ -443,12 +436,11 @@ export default function Home() {
       .eq("is_defective", false)
       .order("id", { ascending: false })
 
-    if (error) console.error("❌ Error fetching orders:", error)
+    if (error) console.error("Error fetching orders:", error)
     else setOrders(data || [])
   }
 
-
-  // ✅ Fetch Trash
+  // Fetch Trash
   const fetchTrashOrders = async () => {
     const { data, error } = await supabase
       .from("trash_orders")
@@ -456,27 +448,44 @@ export default function Home() {
       .order("deleted_at", { ascending: false })
 
     if (error) {
-      console.error("❌ Error fetching trash_orders:", error)
+      console.error("Error fetching trash_orders:", error)
     } else {
       setTrashOrders(data || [])
     }
   }
 
-
-  // ✅ Fetch Designs and Colors from Supabase
+  // Fetch Designs and Colors from Supabase (parallel)
   const fetchDesignsAndColors = async () => {
-    const { data: designData } = await supabase.from("designs").select("*").order("created_at", { ascending: false })
-    const { data: colorData } = await supabase.from("colors").select("*").order("created_at", { ascending: false })
+    const [{ data: designData }, { data: colorData }] = await Promise.all([
+      supabase.from("designs").select("*").order("created_at", { ascending: false }),
+      supabase.from("colors").select("*").order("created_at", { ascending: false }),
+    ])
     setDesigns(designData?.map((d) => d.name) || [])
     setColors(colorData?.map((c) => c.name) || [])
   }
 
-  // ✅ Initial Fetch
+  // Fetch Stocks
+  const fetchStocks = async () => {
+    const { data, error } = await supabase
+      .from("stocks")
+      .select("*")
+      .order("color", { ascending: true })
+
+    if (error) console.error("Error fetching stocks:", error)
+    else setStocks(data || [])
+  }
+
+  // Initial Fetch — critical data in parallel, defer non-essential
   useEffect(() => {
-    fetchOrders()
-    fetchDefectiveOrders()
-    fetchTrashOrders()
-    fetchDesignsAndColors()
+    Promise.all([
+      fetchOrders(),
+      fetchDefectiveOrders(),
+      fetchDesignsAndColors(),
+    ]).then(() => {
+      // Load non-essential data after main content is ready
+      fetchTrashOrders()
+      fetchStocks()
+    })
 
     const channel = supabase
       .channel("orders-changes")
@@ -486,11 +495,18 @@ export default function Home() {
       })
       .subscribe()
 
+    const stockChannel = supabase
+      .channel("stocks-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "stocks" }, () => {
+        fetchStocks()
+      })
+      .subscribe()
+
     return () => {
       supabase.removeChannel(channel)
+      supabase.removeChannel(stockChannel)
     }
   }, [])
-
 
   const handleLogout = () => {
     localStorage.removeItem("authToken")
@@ -499,14 +515,20 @@ export default function Home() {
 
   const handleLogin = () => setIsAuthenticated(true)
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+  if (isLoading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground gap-4">
+      <div className="w-10 h-10 border-4 border-muted border-t-blue-500 rounded-full animate-spin" />
+      <p className="text-sm text-muted-foreground">Loading...</p>
+    </div>
+  )
   if (!isAuthenticated) return <LoginDialog onLogin={handleLogin} />
 
-  // --- Customer grouping ---
+  // --- Customer grouping (using safe separator) ---
   const uniqueCustomers = Array.from(
-    new Set(orders.map((o) => `${o.name}-${o.phone}-${o.facebook}-${o.address}`))
+    new Set(orders.map((o) => `${o.name}${SEPARATOR}${o.phone}${SEPARATOR}${o.facebook}${SEPARATOR}${o.address}`))
   ).map((key) => {
-    const [name, phone, facebook, address] = key.split("-")
+    const parts = key.split(SEPARATOR)
+    const [name, phone, facebook, address] = parts
     const customerOrders = orders.filter(
       (o) =>
         o.name === name &&
@@ -526,12 +548,12 @@ export default function Home() {
     }
   })
 
-  // ✅ Sort customers alphabetically
+  // Sort customers alphabetically
   const sortedCustomers = [...uniqueCustomers].sort((a, b) =>
     a.name.localeCompare(b.name)
   )
 
-  // ✅ Filter Logic (with Payment Status)
+  // Filter Logic (with Payment Status)
   const filteredCustomers = sortedCustomers.filter((customer) => {
     const matchesName = customer.name.toLowerCase().includes(filterName.toLowerCase())
     const hasMatchingOrder = customer.orders.some((order) => {
@@ -551,12 +573,12 @@ export default function Home() {
     ? uniqueCustomers.find((c) => c.id === selectedCustomer) || null
     : null
 
-  // ✅ Count unique batch folders
+  // Count unique batch folders
   const uniqueFolderCount = Array.from(
     new Set(orders.filter((o) => o.batch_folder).map((o) => o.batch_folder))
   ).length
 
-  // ✅ Delete a single order → Move to Trash
+  // Delete a single order -> Move to Trash
   const handleDeleteOrder = async (orderId: number) => {
     const orderToTrash = orders.find((o) => o.id === orderId);
     if (!orderToTrash) return;
@@ -574,9 +596,9 @@ export default function Home() {
       payment_status: orderToTrash.payment_status,
       price: orderToTrash.price,
       created_at: orderToTrash.created_at,
-      defective_note: orderToTrash.defectiveNote,
+      defective_note: orderToTrash.defective_note,
       deleted_at: new Date().toISOString(),
-      is_defective: orderToTrash.isDefective,
+      is_defective: orderToTrash.is_defective,
       is_deleted: true,
       is_trashed: true,
       batch: orderToTrash.batch,
@@ -601,8 +623,8 @@ export default function Home() {
       // 3. Update local state
       setOrders((prev) => prev.filter((o) => o.id !== orderId));
       await fetchTrashOrders();
-      
-      toast({ title: "✅ Order moved to trash." });
+
+      toast({ title: "Order moved to trash." });
 
     } catch (err: any) {
       console.error("Error moving order to trash:", err.message);
@@ -614,32 +636,6 @@ export default function Home() {
     }
   };
 
-  // Retrieve single order
-  const handleRetrieveOrder = (orderId: number) => {
-    const orderToRestore = trashOrders.find((order) => order.id === orderId)
-    if (orderToRestore) {
-      setTrashOrders((prev) => prev.filter((order) => order.id !== orderId))
-      setOrders((prev) => [...prev, orderToRestore])
-    }
-  }
-
-  // Permanently delete single order
-  const handleDeleteOrderPermanently = (orderId: number) => {
-    setTrashOrders((prev) => prev.filter((order) => order.id !== orderId))
-  }
-
-  // Retrieve all
-  const handleRetrieveAll = () => {
-    setOrders((prev) => [...prev, ...trashOrders])
-    setTrashOrders([])
-  }
-
-  // Delete all permanently
-  const handleDeleteAllPermanently = () => {
-    setTrashOrders([])
-  }
-
-
   const handleMarkDefective = async (orderId: number, note: string = "") => {
     const { error } = await supabase
       .from("orders")
@@ -647,37 +643,37 @@ export default function Home() {
       .eq("id", orderId)
 
     if (error) {
-      console.error("❌ Failed to mark defective:", error)
+      console.error("Failed to mark defective:", error)
       return
     }
 
     await fetchOrders()
     await fetchDefectiveOrders()
-    alert("✅ Order marked as defective!")
+    toast({ title: "Order marked as defective!" })
   }
-
 
   const handleAddOrder = async () => {
     await fetchOrders()
     setShowAddOrderDialog(false)
   }
 
-  // ✅ Updated to increment key when opening dialog
+  // Updated to increment key when opening dialog
   const handleViewOrder = (customerId: string) => {
     setSelectedCustomer(customerId)
-    setViewDialogKey(prev => prev + 1) // Force remount
+    setViewDialogKey(prev => prev + 1)
     setShowViewOrderDialog(true)
   }
 
-  // ✅ Delete All → Move to Trash
+  // Delete All -> Move to Trash (excludes defective items)
   const handleDeleteAll = async () => {
     if (!confirm("Are you sure you want to delete all orders?")) return
 
     try {
-      // 1️⃣ Get all current orders
+      // Get all non-defective orders only
       const { data: allOrders, error: fetchError } = await supabase
         .from("orders")
         .select("*")
+        .eq("is_defective", false)
 
       if (fetchError) throw fetchError
       if (!allOrders || allOrders.length === 0) {
@@ -685,7 +681,7 @@ export default function Home() {
         return
       }
 
-      // 2️⃣ Move them to trash_orders (excluding id)
+      // Move them to trash_orders (excluding id)
       const { error: moveError } = await supabase.from("trash_orders").insert(
         allOrders.map((o) => ({
           name: o.name,
@@ -711,21 +707,23 @@ export default function Home() {
 
       if (moveError) throw moveError
 
-      // 3️⃣ Delete all from orders
-      const { error: deleteError } = await supabase.from("orders").delete().neq("id", 0)
+      // Delete non-defective orders from orders table
+      const { error: deleteError } = await supabase
+        .from("orders")
+        .delete()
+        .eq("is_defective", false)
       if (deleteError) throw deleteError
 
-      // 4️⃣ Refresh data
+      // Refresh data
       await fetchOrders()
       await fetchTrashOrders()
 
-      alert("✅ All orders moved to Trash successfully!")
+      toast({ title: "All orders moved to Trash successfully!" })
     } catch (err: any) {
-      console.error("❌ Error moving to trash:", err.message)
+      console.error("Error moving to trash:", err.message)
       alert("Failed to delete all orders.")
     }
   }
-
 
   // --- Render ---
   return (
@@ -744,16 +742,17 @@ export default function Home() {
         onAddOrder={() => setShowAddOrderDialog(true)}
         onAddDesign={() => setShowAddDesignDialog(true)}
         onAddColor={() => setShowAddColorDialog(true)}
+        onManageStock={() => setShowStockDialog(true)}
         onDeleteAll={handleDeleteAll}
-        onViewTrash={() => setIsTrashOpen(true)} 
+        onViewTrash={() => setIsTrashOpen(true)}
         onLogout={handleLogout}
         onExportTotalPDF={handleExportTotalPDF}
         onExportByDesignPDF={handleExportByDesignPDF}
-        onExportOrdersPDF={handleExportOrdersPDF} 
+        onExportOrdersPDF={handleExportOrdersPDF}
         onExportShippingInfo={handleExportShippingInfo}
       />
 
-      {/* ✅ Add Design Dialog */}
+      {/* Add Design Dialog */}
       <AddDesignDialog
         open={showAddDesignDialog}
         onOpenChange={setShowAddDesignDialog}
@@ -766,15 +765,15 @@ export default function Home() {
         existingDesigns={designs}
       />
 
-      {/* ✅ Add Color Dialog */}
+      {/* Add Color Dialog */}
       <AddColorDialog
         open={showAddColorDialog}
         onOpenChange={setShowAddColorDialog}
         onAddColor={async (color) => {
-          console.log("Added color:", color)
+          setColors((prev) => [...prev, color].sort((a, b) => a.localeCompare(b)))
         }}
         onDeleteColor={async (color) => {
-          console.log("Deleted color:", color)
+          setColors((prev) => prev.filter((c) => c !== color))
         }}
       />
 
@@ -785,9 +784,6 @@ export default function Home() {
           onCardClick={(type: "total" | "designs" | "customers") => {
             if (type === "total") setShowTShirtsBreakdown(true)
             if (type === "designs") setShowDesignsBreakdown(true)
-            if (type === "customers") {
-              console.log("Customers card clicked")
-            }
           }}
           onDownload={(type: "total" | "byDesign" | "orders") => {
             if (type === "total") handleExportTotalPDF()
@@ -796,26 +792,28 @@ export default function Home() {
           }}
         />
 
-        {/* ✅ Action Buttons Row */}
+        {/* Action Buttons Row */}
         <div className="flex justify-end mb-4 gap-3 flex-wrap">
           {/* Batch Folders Button */}
           <button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition flex items-center gap-2"
+            className="bg-card hover:bg-muted/50 text-foreground border border-border px-4 py-2 rounded-lg transition flex items-center gap-2"
             onClick={() => setShowBatchDialog(true)}
           >
-            📁 Batch Folders
-            <span className="bg-white text-indigo-700 font-bold rounded-full px-2 py-0.5 text-sm">
+            <Folder className="w-4 h-4" />
+            Batch Folders
+            <span className="bg-muted text-muted-foreground font-bold rounded-full px-2 py-0.5 text-sm">
               {uniqueFolderCount}
             </span>
           </button>
 
           {/* Defective Items Button */}
           <button
-            className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow-md transition flex items-center gap-2"
+            className="bg-card hover:bg-muted/50 text-foreground border border-border px-4 py-2 rounded-lg transition flex items-center gap-2"
             onClick={() => setShowDefectiveDialog(true)}
           >
-            🧩 Defective Items
-            <span className="bg-white text-yellow-700 font-bold rounded-full px-2 py-0.5 text-sm">
+            <AlertTriangle className="w-4 h-4" />
+            Defective Items
+            <span className="bg-muted text-muted-foreground font-bold rounded-full px-2 py-0.5 text-sm">
               {defectiveOrders.length}
             </span>
           </button>
@@ -857,16 +855,18 @@ export default function Home() {
         />
       </main>
 
-      {/* ✅ Add Order Dialog */}
+      {/* Add Order Dialog */}
       <AddOrderDialog
         open={showAddOrderDialog}
         onOpenChange={setShowAddOrderDialog}
         onAddOrder={handleAddOrder}
         colors={colors}
         designs={designs}
+        stocks={stocks}
+        onStockUpdate={fetchStocks}
       />
 
-      {/* ✅ View Orders Dialog - Using key to force remount */}
+      {/* View Orders Dialog - Using key to force remount */}
       <ViewOrderDialog
         key={viewDialogKey}
         open={showViewOrderDialog}
@@ -875,6 +875,8 @@ export default function Home() {
         customerOrders={selectedCustomerObj?.orders || []}
         colors={colors}
         designs={designs}
+        stocks={stocks}
+        onStockUpdate={fetchStocks}
         onAddMoreOrder={async () => {
           await fetchOrders()
         }}
@@ -884,7 +886,7 @@ export default function Home() {
         onEditCustomer={() => {}}
       />
 
-      {/* ✅ Trash Dialogs */}
+      {/* Trash Dialog */}
       <TrashDialog
         open={isTrashOpen}
         onOpenChange={setIsTrashOpen}
@@ -934,9 +936,9 @@ export default function Home() {
 
             await fetchOrders()
             await fetchTrashOrders()
-            toast({ title: "✅ Order successfully retrieved!" })
+            toast({ title: "Order successfully retrieved!" })
           } catch (err: any) {
-            console.error("❌ Error retrieving order:", err.message)
+            console.error("Error retrieving order:", err.message)
             toast({
               title: "Failed to retrieve order.",
               description: err.message,
@@ -982,9 +984,9 @@ export default function Home() {
 
             await fetchOrders()
             await fetchTrashOrders()
-            toast({ title: "✅ All orders retrieved successfully!" })
+            toast({ title: "All orders retrieved successfully!" })
           } catch (err: any) {
-            console.error("❌ Error retrieving all orders:", err.message)
+            console.error("Error retrieving all orders:", err.message)
             toast({
               title: "Failed to retrieve all orders.",
               description: err.message,
@@ -998,9 +1000,9 @@ export default function Home() {
             if (error) throw error
 
             await fetchTrashOrders()
-            toast({ title: "🗑️ Order permanently deleted." })
+            toast({ title: "Order permanently deleted." })
           } catch (err: any) {
-            console.error("❌ Error deleting order permanently:", err.message)
+            console.error("Error deleting order permanently:", err.message)
             toast({
               title: "Failed to delete order permanently.",
               description: err.message,
@@ -1014,9 +1016,9 @@ export default function Home() {
             if (error) throw error
 
             await fetchTrashOrders()
-            toast({ title: "🗑️ All trash orders deleted permanently." })
+            toast({ title: "All trash orders deleted permanently." })
           } catch (err: any) {
-            console.error("❌ Error deleting all trash:", err.message)
+            console.error("Error deleting all trash:", err.message)
             toast({
               title: "Failed to delete all trash.",
               description: err.message,
@@ -1026,7 +1028,7 @@ export default function Home() {
         }}
       />
 
-      {/* ✅ Defective Items Dialog */}
+      {/* Defective Items Dialog */}
       <DefectiveItemsDialog
         open={showDefectiveDialog}
         onOpenChange={setShowDefectiveDialog}
@@ -1040,21 +1042,21 @@ export default function Home() {
 
           await fetchOrders()
           await fetchDefectiveOrders()
-          alert("✅ Order restored to normal list!")
+          toast({ title: "Order restored to normal list!" })
         }}
         onDeleteDefectivePermanently={async (id: number) => {
           await supabase.from("orders").delete().eq("id", id)
           await fetchDefectiveOrders()
-          alert("🗑️ Order permanently deleted.")
+          toast({ title: "Order permanently deleted." })
         }}
         onDeleteAllDefectivePermanently={async () => {
           await supabase.from("orders").delete().eq("is_defective", true)
           await fetchDefectiveOrders()
-          alert("🗑️ All defective orders deleted.")
+          toast({ title: "All defective orders deleted." })
         }}
       />
 
-      {/* ✅ Batch Folders Dialog */}
+      {/* Batch Folders Dialog */}
       <BatchOrdersDialog
         open={showBatchDialog}
         onOpenChange={setShowBatchDialog}
@@ -1062,19 +1064,28 @@ export default function Home() {
         onRefresh={fetchOrders}
       />
 
-      <ColorByDesignChart />  
+      {/* Stock Management Dialog */}
+      <StockManagementDialog
+        open={showStockDialog}
+        onOpenChange={setShowStockDialog}
+        colors={colors}
+        stocks={stocks}
+        onStockUpdate={fetchStocks}
+      />
+
+      <ColorByDesignChart />
 
       <TShirtsBreakdownDialog
         open={showTShirtsBreakdown}
-        onOpenChange={setShowTShirtsBreakdown} 
-        orders={orders}  
+        onOpenChange={setShowTShirtsBreakdown}
+        orders={orders}
         type="total"
       />
-      
-      <DesignsBreakdownDialog 
-        open={showDesignsBreakdown} 
-        onOpenChange={setShowDesignsBreakdown} 
-        orders={orders} 
+
+      <DesignsBreakdownDialog
+        open={showDesignsBreakdown}
+        onOpenChange={setShowDesignsBreakdown}
+        orders={orders}
       />
       </div>
     </div>

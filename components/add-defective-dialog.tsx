@@ -17,7 +17,7 @@ interface AddDefectiveDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   order: Order | null
-  onConfirm: (note: string) => void // ✅ Added this prop
+  onConfirm: (note: string) => void
 }
 
 export default function AddDefectiveDialog({

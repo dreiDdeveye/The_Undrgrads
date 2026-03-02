@@ -70,25 +70,25 @@ export default function TShirtsBreakdownDialog({ open, onOpenChange, orders, typ
                 <div key={color} className="border rounded">
                   <button
                     onClick={() => toggleColor(color)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-gray-100 transition"
+                    className="w-full flex items-center justify-between p-3 hover:bg-muted transition"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-4 h-4 rounded border" style={{ backgroundColor: color.toLowerCase() }}></div>
                       <span className="font-semibold">{color}</span>
-                      <span className="text-sm text-gray-600">({totalQuantity} total)</span>
+                      <span className="text-sm text-muted-foreground">({totalQuantity} total)</span>
                     </div>
                     {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </button>
 
                   {isExpanded && (
-                    <div className="bg-gray-50 border-t">
+                    <div className="bg-muted/30 border-t border-border">
                       <div className="grid grid-cols-2 gap-2 p-3">
                         {sizeOrder.map((size) => {
                           const quantity = sizes[size] || 0
                           return quantity > 0 ? (
-                            <div key={size} className="flex justify-between text-sm p-2 bg-white rounded border">
+                            <div key={size} className="flex justify-between text-sm p-2 bg-card rounded border border-border">
                               <span className="font-medium">{size}</span>
-                              <span className="text-gray-600">{quantity}</span>
+                              <span className="text-muted-foreground">{quantity}</span>
                             </div>
                           ) : null
                         })}
