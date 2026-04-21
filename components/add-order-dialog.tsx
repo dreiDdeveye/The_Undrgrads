@@ -38,6 +38,7 @@ export default function AddOrderDialog({
 }: AddOrderDialogProps) {
   const [supabaseDesigns, setSupabaseDesigns] = useState<string[]>([])
   const availableDesigns = supabaseDesigns.length > 0 ? supabaseDesigns : designs
+  const sortedColors = [...colors].sort((a, b) => a.localeCompare(b))
 
   // Batch Folder states
   const [batchFolders, setBatchFolders] = useState<string[]>([])
@@ -53,7 +54,7 @@ export default function AddOrderDialog({
     batch: "",
     batchFolder: "",
     design: availableDesigns[0] || "",
-    color: colors[0] || "",
+    color: sortedColors[0] || "",
     size: "M",
     paymentStatus: "pending",
     price: "",
@@ -135,7 +136,7 @@ export default function AddOrderDialog({
         batch: "",
         batchFolder: "",
         design: availableDesigns[0] || designs[0] || "",
-        color: colors[0] || "",
+        color: sortedColors[0] || "",
         size: "M",
         paymentStatus: "pending",
         price: "",
@@ -152,7 +153,7 @@ export default function AddOrderDialog({
     if (open && availableDesigns.length > 0) {
       setFormData((prev) => ({
         ...prev,
-        color: prev.color || colors[0] || "",
+        color: prev.color || sortedColors[0] || "",
         design: prev.design || availableDesigns[0] || "",
       }))
     }
@@ -228,7 +229,7 @@ export default function AddOrderDialog({
     setFormData({
       ...formData,
       design: availableDesigns[0] || "",
-      color: colors[0] || "",
+      color: sortedColors[0] || "",
       size: "M",
       paymentStatus: "pending",
       price: "",
@@ -298,7 +299,7 @@ export default function AddOrderDialog({
         batch: "",
         batchFolder: "",
         design: availableDesigns[0] || "",
-        color: colors[0] || "White",
+        color: sortedColors[0] || "White",
         size: "M",
         paymentStatus: "pending",
         price: "",
@@ -477,7 +478,7 @@ export default function AddOrderDialog({
                   onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                   className="w-full px-2 sm:px-3 py-2 border border-input bg-background rounded-md text-xs sm:text-sm"
                 >
-                  {colors.map((c, i) => (
+                  {sortedColors.map((c, i) => (
                     <option key={`${c}-${i}`} value={c}>
                       {c}
                     </option>

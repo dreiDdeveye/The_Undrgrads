@@ -43,7 +43,7 @@ export default function LoginDialog({ onLogin }: LoginDialogProps) {
       {/* Logo above the card */}
       <div className="mb-6">
         <Image
-          src="/logo.png"
+          src="/logo1.png"
           alt="Logo"
           width={200}
           height={200}

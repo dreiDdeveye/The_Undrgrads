@@ -458,7 +458,7 @@ export default function Home() {
   const fetchDesignsAndColors = async () => {
     const [{ data: designData }, { data: colorData }] = await Promise.all([
       supabase.from("designs").select("*").order("created_at", { ascending: false }),
-      supabase.from("colors").select("*").order("created_at", { ascending: false }),
+      supabase.from("colors").select("*").order("name", { ascending: true }),
     ])
     setDesigns(designData?.map((d) => d.name) || [])
     setColors(colorData?.map((c) => c.name) || [])
