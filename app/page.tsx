@@ -457,7 +457,7 @@ export default function Home() {
   // Fetch Designs and Colors from Supabase (parallel)
   const fetchDesignsAndColors = async () => {
     const [{ data: designData }, { data: colorData }] = await Promise.all([
-      supabase.from("designs").select("*").order("created_at", { ascending: false }),
+      supabase.from("designs").select("*").order("name", { ascending: true }),
       supabase.from("colors").select("*").order("name", { ascending: true }),
     ])
     setDesigns(designData?.map((d) => d.name) || [])
@@ -757,7 +757,7 @@ export default function Home() {
         open={showAddDesignDialog}
         onOpenChange={setShowAddDesignDialog}
         onAddDesign={(newDesign) => {
-          setDesigns((prev) => [...prev, newDesign])
+          setDesigns((prev) => [...prev, newDesign].sort((a, b) => a.localeCompare(b)))
         }}
         onDeleteDesign={(designToDelete) => {
           setDesigns((prev) => prev.filter((d) => d !== designToDelete))

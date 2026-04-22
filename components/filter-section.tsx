@@ -40,6 +40,8 @@ export default function FilterSection({
   onReset,
   onFilter,
 }: FilterSectionProps) {
+  const sortedDesigns = [...new Set(designs)].sort((a, b) => a.localeCompare(b))
+
   // Format payment status for display
   const formatPaymentStatus = (status: string) => {
     if (status === "All") return "All"
@@ -112,7 +114,7 @@ export default function FilterSection({
             className="w-full px-2 sm:px-3 py-2 border border-input bg-card text-foreground rounded-md text-xs sm:text-sm"
           >
             <option>All</option>
-            {designs.map((d) => (
+            {sortedDesigns.map((d) => (
               <option key={d} value={d}>
                 {d}
               </option>
