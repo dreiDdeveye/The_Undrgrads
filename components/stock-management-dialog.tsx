@@ -23,11 +23,21 @@ export interface StockItem {
   updated_at: string
 }
 
+interface StockReductionOrder {
+  color: string
+  size: string
+  quantity?: number
+  qty?: number
+  is_deleted?: boolean
+  is_defective?: boolean
+}
+
 interface StockManagementDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   colors: string[]
   stocks: StockItem[]
+  orders?: StockReductionOrder[]
   onStockUpdate: () => void
 }
 
@@ -36,6 +46,7 @@ export default function StockManagementDialog({
   onOpenChange,
   colors,
   stocks,
+  orders = [],
   onStockUpdate,
 }: StockManagementDialogProps) {
   const [addColor, setAddColor] = useState("")
@@ -43,6 +54,7 @@ export default function StockManagementDialog({
   const [addQty, setAddQty] = useState("")
   const [editingCell, setEditingCell] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
+  const [selectedColor, setSelectedColor] = useState<string | null>(null)
   const [updatingCells, setUpdatingCells] = useState<Set<string>>(new Set())
   const updatingCellsRef = useRef(new Set<string>())
 
@@ -55,6 +67,23 @@ export default function StockManagementDialog({
 
   const getStockQty = (color: string, size: string): number => {
     return stockMap.get(`${color}|${size}`) || 0
+  }
+
+  const reductionMap = useMemo(() => {
+    const map = new Map<string, number>()
+
+    orders.forEach((order) => {
+      if (order.is_deleted || order.is_defective) return
+      const key = `${order.color}|${order.size}`
+      const orderQty = order.quantity ?? order.qty ?? 1
+      map.set(key, (map.get(key) || 0) + orderQty)
+    })
+
+    return map
+  }, [orders])
+
+  const getReductionQty = (color: string, size: string): number => {
+    return reductionMap.get(`${color}|${size}`) || 0
   }
 
   const getLatestStockQty = async (color: string, size: string): Promise<number> => {
@@ -168,6 +197,10 @@ export default function StockManagementDialog({
 
   // Available sizes for the add-stock form
   const addFormSizes = addColor ? getAvailableSizes(addColor) : ALL_SIZES
+  const selectedColorSizes = selectedColor ? getAvailableSizes(selectedColor) : []
+  const selectedColorTotalReduced = selectedColor
+    ? selectedColorSizes.reduce((sum, size) => sum + getReductionQty(selectedColor, size), 0)
+    : 0
 
   if (!open) return null
 
@@ -274,16 +307,23 @@ export default function StockManagementDialog({
                   <tr key={color} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="p-2 font-medium sticky left-0 bg-card">
                       <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full border border-border"
-                          style={{
-                            backgroundColor:
-                              color.toLowerCase() === "white"
-                                ? "#ffffff"
-                                : color.toLowerCase(),
-                          }}
-                        />
-                        {color}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedColor(color)}
+                          className="flex items-center gap-2 text-left hover:text-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500/60 rounded-sm"
+                          title="View stock reductions by size"
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border border-border"
+                            style={{
+                              backgroundColor:
+                                color.toLowerCase() === "white"
+                                  ? "#ffffff"
+                                  : color.toLowerCase(),
+                            }}
+                          />
+                          <span className="underline-offset-2 hover:underline">{color}</span>
+                        </button>
                       </div>
                     </td>
                     {ALL_SIZES.map((size) => {
@@ -392,6 +432,56 @@ export default function StockManagementDialog({
           )}
         </div>
       </div>
+
+      {selectedColor && (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card text-card-foreground rounded-lg border border-border shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div>
+                <h3 className="text-base font-semibold">{selectedColor} Stock Reductions</h3>
+                <p className="text-xs text-muted-foreground">
+                  Total reduced: <span className="font-semibold text-foreground">{selectedColorTotalReduced}</span>
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedColor(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="p-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-b border-border">
+                    <th className="text-left py-2 font-medium">Size</th>
+                    <th className="text-center py-2 font-medium">Reduced</th>
+                    <th className="text-center py-2 font-medium">Current Stock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedColorSizes.map((size) => {
+                    const reducedQty = getReductionQty(selectedColor, size)
+                    return (
+                      <tr key={size} className="border-b border-border/50 last:border-0">
+                        <td className="py-3 font-medium">{size}</td>
+                        <td className={reducedQty > 0 ? "py-3 text-center font-bold text-yellow-400" : "py-3 text-center text-muted-foreground"}>
+                          {reducedQty}
+                        </td>
+                        <td className="py-3 text-center">{getStockQty(selectedColor, size)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+
+              {selectedColorTotalReduced === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No stock reductions recorded for this color yet.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

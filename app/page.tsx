@@ -1070,6 +1070,7 @@ export default function Home() {
         onOpenChange={setShowStockDialog}
         colors={colors}
         stocks={stocks}
+        orders={orders}
         onStockUpdate={fetchStocks}
       />
 
