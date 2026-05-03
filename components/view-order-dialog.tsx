@@ -285,7 +285,15 @@ export default function ViewOrderDialog({
 
   // Add More Order
   const handleAddOrder = async () => {
-    if (getStockQty(newOrder.color, newOrder.size) === 0) {
+    const { data: latestStock } = await supabase
+      .from("stocks")
+      .select("quantity")
+      .eq("color", newOrder.color)
+      .eq("size", newOrder.size)
+      .maybeSingle()
+    const latestStockQty = latestStock?.quantity || 0
+
+    if (latestStockQty === 0) {
       toast({ title: `${newOrder.color} - ${newOrder.size} is out of stock`, variant: "destructive" })
       return
     }
@@ -332,12 +340,11 @@ export default function ViewOrderDialog({
     }
 
     // Deduct stock
-    const currentQty = getStockQty(newOrder.color, newOrder.size)
-    if (currentQty > 0) {
+    if (latestStockQty > 0) {
       await supabase
         .from("stocks")
         .upsert(
-          { color: newOrder.color, size: newOrder.size, quantity: Math.max(0, currentQty - 1) },
+          { color: newOrder.color, size: newOrder.size, quantity: latestStockQty - 1 },
           { onConflict: "color,size" }
         )
     }

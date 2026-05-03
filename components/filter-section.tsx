@@ -46,6 +46,7 @@ export default function FilterSection({
   const formatPaymentStatus = (status: string) => {
     if (status === "All") return "All"
     if (status === "pending") return "No Confirmation"
+    if (status === "awaiting_payment") return "Confirmed - Unpaid"
     if (status === "partially paid") return "Partially Paid"
     if (status === "fully paid") return "Fully Paid"
     return status

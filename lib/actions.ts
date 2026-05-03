@@ -136,8 +136,19 @@ export async function placeShopOrder(
     return { success: false, error: itemsError.message };
   }
 
-  // 5. Deduct stock for each item
-  for (const item of items) {
+  // 5. Deduct stock for each color/size once so duplicate cart lines cannot reuse a stale quantity.
+  const stockDeductions = new Map<string, { color: string; size: string; quantity: number }>();
+  items.forEach((item) => {
+    const key = `${item.color}|${item.size}`;
+    const existing = stockDeductions.get(key);
+    stockDeductions.set(key, {
+      color: item.color,
+      size: item.size,
+      quantity: (existing?.quantity || 0) + item.quantity,
+    });
+  });
+
+  for (const item of stockDeductions.values()) {
     const { data: stock } = await supabase
       .from('stocks')
       .select('quantity')

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { X, Plus, Minus, Package, AlertTriangle } from "lucide-react"
@@ -43,6 +43,8 @@ export default function StockManagementDialog({
   const [addQty, setAddQty] = useState("")
   const [editingCell, setEditingCell] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
+  const [updatingCells, setUpdatingCells] = useState<Set<string>>(new Set())
+  const updatingCellsRef = useRef(new Set<string>())
 
   // Build a lookup map: "color|size" -> quantity
   const stockMap = useMemo(() => {
@@ -53,6 +55,37 @@ export default function StockManagementDialog({
 
   const getStockQty = (color: string, size: string): number => {
     return stockMap.get(`${color}|${size}`) || 0
+  }
+
+  const getLatestStockQty = async (color: string, size: string): Promise<number> => {
+    const { data, error } = await supabase
+      .from("stocks")
+      .select("quantity")
+      .eq("color", color)
+      .eq("size", size)
+      .maybeSingle()
+
+    if (error) {
+      toast({ title: "Error reading stock", description: error.message, variant: "destructive" })
+      return getStockQty(color, size)
+    }
+
+    return data?.quantity || 0
+  }
+
+  const runCellUpdate = async (color: string, size: string, update: () => Promise<void>) => {
+    const key = `${color}|${size}`
+    if (updatingCellsRef.current.has(key)) return
+
+    updatingCellsRef.current.add(key)
+    setUpdatingCells(new Set(updatingCellsRef.current))
+
+    try {
+      await update()
+    } finally {
+      updatingCellsRef.current.delete(key)
+      setUpdatingCells(new Set(updatingCellsRef.current))
+    }
   }
 
   const handleUpsertStock = async (color: string, size: string, quantity: number) => {
@@ -71,14 +104,18 @@ export default function StockManagementDialog({
   }
 
   const handleIncrement = async (color: string, size: string) => {
-    const currentQty = getStockQty(color, size)
-    await handleUpsertStock(color, size, currentQty + 1)
+    await runCellUpdate(color, size, async () => {
+      const currentQty = await getLatestStockQty(color, size)
+      await handleUpsertStock(color, size, currentQty + 1)
+    })
   }
 
   const handleDecrement = async (color: string, size: string) => {
-    const currentQty = getStockQty(color, size)
-    if (currentQty <= 0) return
-    await handleUpsertStock(color, size, currentQty - 1)
+    await runCellUpdate(color, size, async () => {
+      const currentQty = await getLatestStockQty(color, size)
+      if (currentQty <= 0) return
+      await handleUpsertStock(color, size, currentQty - 1)
+    })
   }
 
   const handleCellClick = (color: string, size: string) => {
@@ -105,7 +142,7 @@ export default function StockManagementDialog({
       return
     }
 
-    const currentQty = getStockQty(addColor, addSize)
+    const currentQty = await getLatestStockQty(addColor, addSize)
     await handleUpsertStock(addColor, addSize, currentQty + qty)
 
     toast({ title: `Added ${qty} to ${addColor} - ${addSize}` })
@@ -264,6 +301,7 @@ export default function StockManagementDialog({
                       const qty = getStockQty(color, size)
                       const cellKey = `${color}|${size}`
                       const isEditing = editingCell === cellKey
+                      const isUpdating = updatingCells.has(cellKey)
 
                       let cellClass = "bg-green-900/30 border-green-800 text-green-400"
                       if (qty === 0)
@@ -302,7 +340,8 @@ export default function StockManagementDialog({
                                     e.stopPropagation()
                                     handleDecrement(color, size)
                                   }}
-                                  className="w-5 h-5 rounded bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors"
+                                  disabled={isUpdating}
+                                  className="w-5 h-5 rounded bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors disabled:opacity-50"
                                 >
                                   <Minus size={10} />
                                 </button>
@@ -311,7 +350,8 @@ export default function StockManagementDialog({
                                     e.stopPropagation()
                                     handleIncrement(color, size)
                                   }}
-                                  className="w-5 h-5 rounded bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors"
+                                  disabled={isUpdating}
+                                  className="w-5 h-5 rounded bg-black/20 hover:bg-black/40 flex items-center justify-center transition-colors disabled:opacity-50"
                                 >
                                   <Plus size={10} />
                                 </button>

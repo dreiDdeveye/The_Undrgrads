@@ -70,6 +70,12 @@ export default function AddOrderDialog({
   const getStockQty = (color: string, size: string): number => {
     return stockMap.get(`${color}|${size}`) || 0
   }
+  const getQueuedQty = (color: string, size: string): number => {
+    return ordersToAdd.filter((order) => order.color === color && order.size === size).length
+  }
+  const getAvailableStockQty = (color: string, size: string): number => {
+    return Math.max(0, getStockQty(color, size) - getQueuedQty(color, size))
+  }
 
   // Fetch batch folders from database
   const fetchBatchFolders = async () => {
@@ -206,7 +212,7 @@ export default function AddOrderDialog({
     }
   }
 
-  const isCurrentOutOfStock = formData.color && formData.size && getStockQty(formData.color, formData.size) === 0
+  const isCurrentOutOfStock = formData.color && formData.size && getAvailableStockQty(formData.color, formData.size) === 0
 
   const handleAddMoreOrder = (e: React.FormEvent) => {
     e.preventDefault()
@@ -215,7 +221,7 @@ export default function AddOrderDialog({
       return
     }
 
-    if (getStockQty(formData.color, formData.size) === 0) {
+    if (getAvailableStockQty(formData.color, formData.size) === 0) {
       toast({ title: `${formData.color} - ${formData.size} is out of stock`, variant: "destructive" })
       return
     }
@@ -269,17 +275,35 @@ export default function AddOrderDialog({
 
       console.log("Saved to Supabase:", data)
 
-      // Deduct stock for each order
-      for (const order of formattedOrders) {
-        const currentQty = getStockQty(order.color, order.size)
-        if (currentQty > 0) {
-          await supabase
-            .from("stocks")
-            .upsert(
-              { color: order.color, size: order.size, quantity: Math.max(0, currentQty - 1) },
-              { onConflict: "color,size" }
-            )
-        }
+      const stockDeductions = new Map<string, { color: string; size: string; quantity: number }>()
+      formattedOrders.forEach((order) => {
+        const key = `${order.color}|${order.size}`
+        const existing = stockDeductions.get(key)
+        stockDeductions.set(key, {
+          color: order.color,
+          size: order.size,
+          quantity: (existing?.quantity || 0) + 1,
+        })
+      })
+
+      for (const deduction of stockDeductions.values()) {
+        const { data: latestStock } = await supabase
+          .from("stocks")
+          .select("quantity")
+          .eq("color", deduction.color)
+          .eq("size", deduction.size)
+          .maybeSingle()
+
+        await supabase
+          .from("stocks")
+          .upsert(
+            {
+              color: deduction.color,
+              size: deduction.size,
+              quantity: Math.max(0, (latestStock?.quantity || 0) - deduction.quantity),
+            },
+            { onConflict: "color,size" }
+          )
       }
       onStockUpdate?.()
 
@@ -509,7 +533,7 @@ export default function AddOrderDialog({
                 )}
                 {/* Stock indicator */}
                 {formData.color && formData.size && (() => {
-                  const qty = getStockQty(formData.color, formData.size)
+                  const qty = getAvailableStockQty(formData.color, formData.size)
                   if (qty === 0) return (
                     <p className="text-[10px] sm:text-xs text-red-400 mt-1 flex items-center gap-1">
                       <AlertTriangle size={10} /> Out of stock

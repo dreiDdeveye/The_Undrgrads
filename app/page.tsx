@@ -71,7 +71,7 @@ export default function Home() {
   const itemsPerPage = 10
 
   // Payment status options for filter
-  const paymentStatusOptions = ["All", "pending", "partially paid", "fully paid"]
+  const paymentStatusOptions = ["All", "pending", "awaiting_payment", "partially paid", "fully paid"]
 
   // Authentication
   useEffect(() => {
