@@ -32,6 +32,21 @@ interface BatchOrdersDialogProps {
   onRefresh: () => void
 }
 
+const getPaymentStatusLabel = (status: string) => {
+  switch (status) {
+    case "pending":
+      return "No Confirmation"
+    case "awaiting_payment":
+      return "Confirmed - Unpaid"
+    case "partially paid":
+      return "Partially Paid"
+    case "fully paid":
+      return "Fully Paid"
+    default:
+      return status.replace("_", " ")
+  }
+}
+
 export default function BatchOrdersDialog({
   open,
   onOpenChange,
@@ -548,10 +563,12 @@ export default function BatchOrdersDialog({
                                         ? "bg-green-900/40 text-green-400"
                                         : firstOrder.payment_status === "partially paid"
                                         ? "bg-yellow-900/40 text-yellow-400"
+                                        : firstOrder.payment_status === "awaiting_payment"
+                                        ? "bg-blue-900/40 text-blue-400"
                                         : "bg-muted text-muted-foreground"
                                     }`}
                                   >
-                                    {firstOrder.payment_status}
+                                    {getPaymentStatusLabel(firstOrder.payment_status)}
                                   </span>
 
                                   {/* Order details pills */}
@@ -781,10 +798,12 @@ export default function BatchOrdersDialog({
                                 ? "bg-green-900/40 text-green-400"
                                 : order.payment_status === "partially paid"
                                 ? "bg-yellow-900/40 text-yellow-400"
+                                : order.payment_status === "awaiting_payment"
+                                ? "bg-blue-900/40 text-blue-400"
                                 : "bg-muted text-muted-foreground"
                             }`}
                           >
-                            {order.payment_status}
+                            {getPaymentStatusLabel(order.payment_status)}
                           </span>
                           {order.batch_folder && (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-400">

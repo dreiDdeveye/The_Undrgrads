@@ -130,7 +130,7 @@ export default function ViewOrderDialog({
     color: colors[0] || "White",
     size: "M",
     design: designs[0] || "Prologue",
-    paymentStatus: "Pending",
+    paymentStatus: "pending",
     price: "",
   })
 
@@ -171,7 +171,7 @@ export default function ViewOrderDialog({
       color: colors[0] || "White",
       size: "M",
       design: designs[0] || "Prologue",
-      paymentStatus: "Pending",
+      paymentStatus: "pending",
       price: "",
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -221,7 +221,7 @@ export default function ViewOrderDialog({
       o.color,
       o.size,
       `Php = ${o.price}`,
-      o.payment_status.replace("_", " "),
+      formatPaymentStatus(o.payment_status),
       new Date(o.created_at || "").toLocaleDateString(),
     ])
 
@@ -298,7 +298,11 @@ export default function ViewOrderDialog({
       return
     }
 
-    const normalizedStatus = newOrder.paymentStatus.toLowerCase() as "pending" | "partially paid" | "fully paid"
+    const normalizedStatus = newOrder.paymentStatus.toLowerCase() as
+      | "pending"
+      | "awaiting_payment"
+      | "partially paid"
+      | "fully paid"
 
     const orderToAdd: Order = {
       id: Date.now(),
@@ -357,7 +361,7 @@ export default function ViewOrderDialog({
       color: colors[0] || "White",
       size: "M",
       design: designs[0] || "Prologue",
-      paymentStatus: "Pending",
+      paymentStatus: "pending",
       price: "",
     })
 
@@ -469,8 +473,25 @@ export default function ViewOrderDialog({
         return { bg: "bg-green-900/40", text: "text-green-400", Icon: CheckCircle }
       case "partially paid":
         return { bg: "bg-yellow-900/40", text: "text-yellow-400", Icon: Clock }
+      case "awaiting_payment":
+        return { bg: "bg-blue-900/40", text: "text-blue-400", Icon: Clock }
       default:
         return { bg: "bg-muted", text: "text-muted-foreground", Icon: Pause }
+    }
+  }
+
+  const formatPaymentStatus = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "No Confirmation"
+      case "awaiting_payment":
+        return "Confirmed - Unpaid"
+      case "partially paid":
+        return "Partially Paid"
+      case "fully paid":
+        return "Fully Paid"
+      default:
+        return status.replace("_", " ")
     }
   }
 
@@ -648,7 +669,7 @@ export default function ViewOrderDialog({
                             </span>
                           )}
                           <span className={`text-xs px-2 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
-                            <StatusIcon className="w-3 h-3" /> {order.payment_status.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
+                            <StatusIcon className="w-3 h-3" /> {formatPaymentStatus(order.payment_status)}
                           </span>
                         </div>
                       </div>
@@ -766,9 +787,10 @@ export default function ViewOrderDialog({
                     value={newOrder.paymentStatus}
                     onChange={(e) => setNewOrder({ ...newOrder, paymentStatus: e.target.value })}
                   >
-                    <option value="Pending">Pending</option>
-                    <option value="Partially Paid">Partially Paid</option>
-                    <option value="Fully Paid">Fully Paid</option>
+                    <option value="pending">NO CONFIRMATION</option>
+                    <option value="awaiting_payment">CONFIRMED - UNPAID</option>
+                    <option value="partially paid">Partially Paid</option>
+                    <option value="fully paid">Fully Paid</option>
                   </select>
                 </div>
 
@@ -885,7 +907,8 @@ export default function ViewOrderDialog({
                       value={editingOrder.payment_status}
                       onChange={(e) => setEditingOrder({ ...editingOrder, payment_status: e.target.value })}
                     >
-                      <option value="pending">Pending</option>
+                      <option value="pending">NO CONFIRMATION</option>
+                      <option value="awaiting_payment">CONFIRMED - UNPAID</option>
                       <option value="partially paid">Partially Paid</option>
                       <option value="fully paid">Fully Paid</option>
                     </select>

@@ -326,9 +326,11 @@ export default function Home() {
               return "For Shipment"
             case "partially paid":
               return "Partial"
+            case "awaiting_payment":
+              return "Confirmed - Unpaid"
             case "pending":
             default:
-              return "Pending"
+              return "No Confirmation"
           }
         }
 

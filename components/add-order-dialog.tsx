@@ -561,7 +561,8 @@ export default function AddOrderDialog({
                   }
                   className="w-full px-2 sm:px-3 py-2 border border-input bg-background rounded-md text-xs sm:text-sm"
                 >
-                  <option value="pending">Pending</option>
+                  <option value="pending">NO CONFIRMATION</option>
+                  <option value="awaiting_payment">CONFIRMED - UNPAID</option>
                   <option value="partially paid">Partially Paid</option>
                   <option value="fully paid">Fully Paid</option>
                 </select>
