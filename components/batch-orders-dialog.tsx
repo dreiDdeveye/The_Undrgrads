@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "@/components/ui/use-toast"
-import { Folder, FolderOpen, Trash2, X, Plus, Package, Inbox, User } from "lucide-react"
+import { Folder, FolderOpen, Trash2, X, Plus, Package, Inbox, User, Pencil, Save } from "lucide-react"
 
 interface Order {
   id: number
@@ -59,6 +59,8 @@ export default function BatchOrdersDialog({
   const [folders, setFolders] = useState<string[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
   const [showCustomerOrders, setShowCustomerOrders] = useState(false)
+  const [editingFolder, setEditingFolder] = useState<string | null>(null)
+  const [editingFolderName, setEditingFolderName] = useState("")
 
   // Delete confirmation states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -159,6 +161,70 @@ export default function BatchOrdersDialog({
       setNewFolderName("")
       setShowAddFolderForm(false)
       toast({ title: `Folder "${newFolder}" created successfully` })
+    }
+  }
+
+  const handleStartEditFolder = (folder: string) => {
+    setEditingFolder(folder)
+    setEditingFolderName(folder)
+  }
+
+  const handleCancelEditFolder = () => {
+    setEditingFolder(null)
+    setEditingFolderName("")
+  }
+
+  const handleRenameFolder = async () => {
+    if (!editingFolder) return
+
+    const oldName = editingFolder
+    const newName = editingFolderName.trim()
+
+    if (!newName) {
+      toast({ title: "Please enter a folder name", variant: "destructive" })
+      return
+    }
+
+    if (newName === oldName) {
+      handleCancelEditFolder()
+      return
+    }
+
+    if (folders.includes(newName)) {
+      toast({ title: "Folder already exists!", variant: "destructive" })
+      return
+    }
+
+    try {
+      const { error: ordersError } = await supabase
+        .from("orders")
+        .update({ batch_folder: newName })
+        .eq("batch_folder", oldName)
+
+      if (ordersError) throw ordersError
+
+      const { error: folderError } = await supabase
+        .from("batch_folders")
+        .update({ name: newName })
+        .eq("name", oldName)
+
+      if (folderError) {
+        console.log("batch_folders table may not exist, renamed orders only")
+      }
+
+      setFolders((prev) => prev.map((folder) => (folder === oldName ? newName : folder)).sort())
+      setSelectedFolder((prev) => (prev === oldName ? newName : prev))
+      handleCancelEditFolder()
+      onRefresh()
+      fetchFolders()
+      toast({ title: `Folder renamed to "${newName}"` })
+    } catch (err: any) {
+      console.error("Error renaming folder:", err.message)
+      toast({
+        title: "Error renaming folder",
+        description: err.message,
+        variant: "destructive",
+      })
     }
   }
 
@@ -425,26 +491,81 @@ export default function BatchOrdersDialog({
               ) : (
                 folders.map((folder) => {
                   const folderOrders = getOrdersInFolder(folder)
+                  const isEditing = editingFolder === folder
                   return (
-                    <button
+                    <div
                       key={folder}
-                      onClick={() => setSelectedFolder(folder)}
-                      className={`w-full text-left p-3 rounded-lg transition-all ${
+                      className={`w-full p-3 rounded-lg transition-all ${
                         selectedFolder === folder
                           ? "bg-indigo-600 text-white shadow-lg"
                           : "bg-card hover:bg-accent text-card-foreground"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <Package className="w-5 h-5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold truncate">{folder}</div>
-                          <div className={`text-xs ${selectedFolder === folder ? "text-indigo-200" : "text-muted-foreground"}`}>
-                            {folderOrders.length} orders
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <Input
+                            value={editingFolderName}
+                            onChange={(e) => setEditingFolderName(e.target.value)}
+                            className="h-8 text-sm bg-background text-foreground"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleRenameFolder()
+                              if (e.key === "Escape") handleCancelEditFolder()
+                            }}
+                            autoFocus
+                          />
+                          <div className="flex gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 flex-1 bg-green-600 hover:bg-green-700 text-xs"
+                              onClick={handleRenameFolder}
+                            >
+                              <Save className="w-3 h-3 mr-1" />
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 flex-1 text-xs"
+                              onClick={handleCancelEditFolder}
+                            >
+                              Cancel
+                            </Button>
                           </div>
                         </div>
-                      </div>
-                    </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFolder(folder)}
+                            className="flex flex-1 min-w-0 items-center gap-2 text-left"
+                          >
+                            <Package className="w-5 h-5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold truncate">{folder}</div>
+                              <div className={`text-xs ${selectedFolder === folder ? "text-indigo-200" : "text-muted-foreground"}`}>
+                                {folderOrders.length} orders
+                              </div>
+                            </div>
+                          </button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className={`h-7 w-7 flex-shrink-0 ${
+                              selectedFolder === folder
+                                ? "text-white hover:bg-white/20"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                            onClick={() => handleStartEditFolder(folder)}
+                            title="Edit folder name"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   )
                 })
               )}
@@ -475,15 +596,24 @@ export default function BatchOrdersDialog({
                     </div>
                   </div>
                   {selectedFolder !== "__unassigned__" && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDeleteClick(selectedFolder)}
-                      className="flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Delete Folder
-                    </Button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStartEditFolder(selectedFolder)}
+                      >
+                        <Pencil className="w-4 h-4 mr-1" />
+                        Edit Name
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteClick(selectedFolder)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Delete Folder
+                      </Button>
+                    </div>
                   )}
                 </div>
 

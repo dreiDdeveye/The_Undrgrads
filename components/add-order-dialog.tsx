@@ -58,6 +58,7 @@ export default function AddOrderDialog({
     size: "M",
     paymentStatus: "pending",
     price: "",
+    downpayment: "",
   })
 
   const [ordersToAdd, setOrdersToAdd] = useState<any[]>([])
@@ -75,6 +76,20 @@ export default function AddOrderDialog({
   }
   const getAvailableStockQty = (color: string, size: string): number => {
     return Math.max(0, getStockQty(color, size) - getQueuedQty(color, size))
+  }
+  const plusSizeFees: Record<string, number> = {
+    "2XL": 40,
+    "3XL": 50,
+    "4XL": 60,
+    "5XL": 70,
+  }
+  const getPlusSizeFee = (size: string) => plusSizeFees[size] || 0
+  const getCalculatedPrice = (price: string | number, size: string) => {
+    const basePrice = Number(price) || 0
+    return basePrice + getPlusSizeFee(size)
+  }
+  const getBalance = (price: string | number, size: string, downpayment: string | number) => {
+    return Math.max(0, getCalculatedPrice(price, size) - (Number(downpayment) || 0))
   }
 
   // Fetch batch folders from database
@@ -146,6 +161,7 @@ export default function AddOrderDialog({
         size: "M",
         paymentStatus: "pending",
         price: "",
+        downpayment: "",
       })
       setOrdersToAdd([])
       setShowNewFolderInput(false)
@@ -228,7 +244,12 @@ export default function AddOrderDialog({
 
     setOrdersToAdd([
       ...ordersToAdd,
-      { ...formData, price: formData.price ? parseFloat(formData.price) : undefined },
+      {
+        ...formData,
+        basePrice: formData.price ? parseFloat(formData.price) : 0,
+        price: getCalculatedPrice(formData.price, formData.size),
+        downpayment: formData.downpayment ? parseFloat(formData.downpayment) : 0,
+      },
     ])
 
     // Reset only order-specific fields
@@ -239,6 +260,7 @@ export default function AddOrderDialog({
       size: "M",
       paymentStatus: "pending",
       price: "",
+      downpayment: "",
     })
   }
 
@@ -263,10 +285,18 @@ export default function AddOrderDialog({
         note: "",
         payment_status: order.paymentStatus || "pending",
         price: order.price || 0,
+        downpayment: order.downpayment || 0,
         created_at: new Date(),
       }))
 
-      const { data, error } = await supabase.from("orders").insert(formattedOrders).select()
+      let { data, error } = await supabase.from("orders").insert(formattedOrders).select()
+      if (error && error.message.toLowerCase().includes("downpayment")) {
+        const ordersWithoutDownpayment = formattedOrders.map(({ downpayment, ...order }) => order)
+        const retryResult = await supabase.from("orders").insert(ordersWithoutDownpayment).select()
+        data = retryResult.data
+        error = retryResult.error
+      }
+
       if (error) {
         console.error("Error saving orders:", error.message)
         alert("Failed to save orders.")
@@ -327,6 +357,7 @@ export default function AddOrderDialog({
         size: "M",
         paymentStatus: "pending",
         price: "",
+        downpayment: "",
       })
       setOrdersToAdd([])
       onOpenChange(false)
@@ -343,6 +374,10 @@ export default function AddOrderDialog({
   const handleClose = () => {
     onOpenChange(false)
   }
+
+  const currentPlusSizeFee = getPlusSizeFee(formData.size)
+  const currentCalculatedPrice = getCalculatedPrice(formData.price, formData.size)
+  const currentBalance = getBalance(formData.price, formData.size, formData.downpayment)
 
   if (!open) return null
 
@@ -575,9 +610,29 @@ export default function AddOrderDialog({
                   step="0.01"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  placeholder="Enter price"
+                  placeholder="Base price"
                   className="text-xs sm:text-sm"
                 />
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                  {currentPlusSizeFee > 0
+                    ? `+ Php ${currentPlusSizeFee} size fee = Php ${currentCalculatedPrice.toLocaleString()}`
+                    : `Total: Php ${currentCalculatedPrice.toLocaleString()}`}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm font-medium mb-1">Downpayment</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formData.downpayment}
+                  onChange={(e) => setFormData({ ...formData, downpayment: e.target.value })}
+                  placeholder="Enter downpayment"
+                  className="text-xs sm:text-sm"
+                />
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                  Balance: Php {currentBalance.toLocaleString()}
+                </p>
               </div>
             </div>
           </div>
@@ -622,6 +677,7 @@ export default function AddOrderDialog({
                     <span>
                       {order.design} - {order.color} - {order.size} - {order.paymentStatus}
                       {order.price && ` - ₱${order.price}`}
+                      {order.downpayment ? ` - DP Php ${order.downpayment}` : ""}
                     </span>
                     <button
                       type="button"

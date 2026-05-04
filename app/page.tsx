@@ -72,6 +72,16 @@ export default function Home() {
 
   // Payment status options for filter
   const paymentStatusOptions = ["All", "pending", "awaiting_payment", "partially paid", "fully paid"]
+  const sizeOrder = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]
+  const sortSizes = (a: string, b: string) => {
+    const aIndex = sizeOrder.indexOf(a)
+    const bIndex = sizeOrder.indexOf(b)
+
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex
+    if (aIndex !== -1) return -1
+    if (bIndex !== -1) return 1
+    return a.localeCompare(b)
+  }
 
   // Authentication
   useEffect(() => {
@@ -146,14 +156,18 @@ export default function Home() {
     const tableData: any[] = []
     let overallTotal = 0
 
-    Object.entries(grouped).forEach(([color, sizes], index, arr) => {
-      Object.entries(sizes).forEach(([size, qty]) => {
+    const sortedColors = Object.keys(grouped).sort((a, b) => a.localeCompare(b))
+
+    sortedColors.forEach((color, index) => {
+      const sizes = grouped[color]
+      Object.keys(sizes).sort(sortSizes).forEach((size) => {
+        const qty = sizes[size]
         tableData.push([color, size, qty])
         overallTotal += qty
       })
 
       // Add a light green divider after each color group (except last)
-      if (index < arr.length - 1) {
+      if (index < sortedColors.length - 1) {
         tableData.push([
           {
             content: "",
@@ -214,16 +228,21 @@ export default function Home() {
     const tableData: any[] = []
     let overallTotal = 0
 
-    Object.entries(grouped).forEach(([design, colors], index, arr) => {
-      Object.entries(colors).forEach(([color, sizes]) => {
-        Object.entries(sizes).forEach(([size, qty]) => {
+    const sortedDesigns = Object.keys(grouped).sort((a, b) => a.localeCompare(b))
+
+    sortedDesigns.forEach((design, index) => {
+      const colors = grouped[design]
+      Object.keys(colors).sort((a, b) => a.localeCompare(b)).forEach((color) => {
+        const sizes = colors[color]
+        Object.keys(sizes).sort(sortSizes).forEach((size) => {
+          const qty = sizes[size]
           tableData.push([design, color, size, qty])
           overallTotal += qty
         })
       })
 
       // Add light green divider after each design (except last)
-      if (index < arr.length - 1) {
+      if (index < sortedDesigns.length - 1) {
         tableData.push([
           {
             content: "",
@@ -266,7 +285,7 @@ export default function Home() {
 
     const doc = new jsPDF()
     doc.setFontSize(14)
-    doc.text("Customers Orders", 14, 15)
+    doc.text("Customers Orders", 14, 14)
 
     // Group by unique customer identity (name + phone + address)
     const grouped: Record<string, any[]> = {}
@@ -276,26 +295,32 @@ export default function Home() {
       grouped[key].push(o)
     })
 
-    let startY = 25
+    let startY = 23
 
-    Object.entries(grouped).forEach(([key, items]) => {
+    const sortedCustomerEntries = Object.entries(grouped).sort(([a], [b]) => {
+      const nameA = a.split(SEPARATOR)[0]
+      const nameB = b.split(SEPARATOR)[0]
+      return nameA.localeCompare(nameB)
+    })
+
+    sortedCustomerEntries.forEach(([key, items]) => {
       const parts = key.split(SEPARATOR)
       const name = parts[0]
 
       // Check if we need a new page
-      if (startY > 250) {
+      if (startY > 260) {
         doc.addPage()
         startY = 20
       }
 
       // Green header bar for customer
       doc.setFillColor(90, 180, 50)
-      doc.rect(10, startY - 4, 190, 8, "F")
+      doc.rect(14, startY - 5, 182, 8, "F")
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(11)
-      doc.text(`Customer: ${name}`, 14, startY + 2)
+      doc.setFontSize(10)
+      doc.text(`Customer: ${name}`, 18, startY)
       doc.setTextColor(0, 0, 0)
-      startY += 10
+      startY += 8
 
       // Group customer orders by design
       const ordersByDesign: Record<string, any[]> = {}
@@ -309,10 +334,19 @@ export default function Home() {
       const sortedDesigns = Object.keys(ordersByDesign).sort((a, b) => a.localeCompare(b))
 
       sortedDesigns.forEach((design) => {
-        const designOrders = ordersByDesign[design]
+        const designOrders = ordersByDesign[design].sort((a, b) => {
+          const colorCompare = (a.color || "").localeCompare(b.color || "")
+          if (colorCompare !== 0) return colorCompare
+          return sortSizes(a.size || "", b.size || "")
+        })
+
+        if (startY > 260) {
+          doc.addPage()
+          startY = 20
+        }
 
         // Design sub-header
-        doc.setFontSize(10)
+        doc.setFontSize(9)
         doc.setFont("helvetica", "bold")
         doc.text(`Design: ${design}`, 14, startY)
         doc.setFont("helvetica", "normal")
@@ -350,25 +384,25 @@ export default function Home() {
           body: tableData,
           startY,
           theme: "grid",
-          styles: { fontSize: 9, halign: "center" },
+          styles: { fontSize: 8.5, halign: "center", cellPadding: 2 },
           headStyles: { fillColor: [20, 40, 80], textColor: [255, 255, 255] },
           alternateRowStyles: { fillColor: [235, 242, 245] },
-          margin: { left: 14 },
+          margin: { left: 14, right: 14 },
           columnStyles: {
-            0: { cellWidth: 28 },
+            0: { cellWidth: 42 },
             1: { cellWidth: 18 },
-            2: { cellWidth: 15 },
-            3: { cellWidth: 28 },
+            2: { cellWidth: 14 },
+            3: { cellWidth: 38 },
             4: { cellWidth: 28 },
-            5: { cellWidth: 15 },
-            6: { cellWidth: 15 },
+            5: { cellWidth: 20 },
+            6: { cellWidth: 22 },
           },
         })
 
-        startY = (doc as any).lastAutoTable.finalY + 6
+        startY = (doc as any).lastAutoTable.finalY + 5
       })
 
-      startY += 8
+      startY += 6
     })
 
     doc.save("Customers_Orders.pdf")
@@ -399,10 +433,12 @@ export default function Home() {
       groupedCustomers[key].totalOrder++
     })
 
-    const tableData = Object.entries(groupedCustomers).map(([key, info]) => {
-      const name = key.split(SEPARATOR)[0]
-      return [name, info.address, info.totalOrder, info.phone]
-    })
+    const tableData = Object.entries(groupedCustomers)
+      .map(([key, info]) => {
+        const name = key.split(SEPARATOR)[0]
+        return [name, info.address, info.totalOrder, info.phone]
+      })
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
 
     autoTable(doc, {
       head: [["Name", "Address", "Total Order", "Phone"]],
@@ -666,6 +702,31 @@ export default function Home() {
     setShowViewOrderDialog(true)
   }
 
+  const handleEditCustomer = (customer: any) => {
+    const orderIds = selectedCustomerObj?.orders.map((order) => order.id) || []
+
+    setOrders((prev) =>
+      prev.map((order) =>
+        orderIds.includes(order.id)
+          ? {
+              ...order,
+              name: customer.name || "",
+              phone: customer.phone || "",
+              facebook: customer.facebook || "",
+              chapter: customer.chapter || "",
+              address: customer.address || "",
+              batch: customer.batch || "",
+              batch_folder: customer.batch_folder || "",
+            }
+          : order
+      )
+    )
+
+    setSelectedCustomer(
+      `${customer.name || ""}${SEPARATOR}${customer.phone || ""}${SEPARATOR}${customer.facebook || ""}${SEPARATOR}${customer.address || ""}`
+    )
+  }
+
   // Delete All -> Move to Trash (excludes defective items)
   const handleDeleteAll = async () => {
     if (!confirm("Are you sure you want to delete all orders?")) return
@@ -885,7 +946,7 @@ export default function Home() {
         onDeleteOrder={handleDeleteOrder}
         onEditOrder={() => {}}
         onMarkDefective={(orderId, note) => handleMarkDefective(orderId, note || "")}
-        onEditCustomer={() => {}}
+        onEditCustomer={handleEditCustomer}
       />
 
       {/* Trash Dialog */}

@@ -52,6 +52,7 @@ interface Order {
   payment_status: string
   order_status?: string
   price: number
+  downpayment?: number
   qty?: number
   is_defective?: boolean
   isDefective?: boolean
@@ -103,6 +104,19 @@ export default function ViewOrderDialog({
   const getStockQty = (color: string, size: string): number => {
     return stockMap.get(`${color}|${size}`) || 0
   }
+  const plusSizeFees: Record<string, number> = {
+    "2XL": 40,
+    "3XL": 50,
+    "4XL": 60,
+    "5XL": 70,
+  }
+  const getPlusSizeFee = (size: string) => plusSizeFees[size] || 0
+  const getCalculatedPrice = (price: string | number, size: string) => {
+    return (Number(price) || 0) + getPlusSizeFee(size)
+  }
+  const getBalance = (price: string | number, size: string, downpayment: string | number) => {
+    return Math.max(0, getCalculatedPrice(price, size) - (Number(downpayment) || 0))
+  }
 
   const [editingCustomer, setEditingCustomer] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
@@ -132,6 +146,7 @@ export default function ViewOrderDialog({
     design: designs[0] || "Prologue",
     paymentStatus: "pending",
     price: "",
+    downpayment: "",
   })
 
   // Get available sizes for new order based on selected color
@@ -173,6 +188,7 @@ export default function ViewOrderDialog({
       design: designs[0] || "Prologue",
       paymentStatus: "pending",
       price: "",
+      downpayment: "",
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, customerName])
@@ -216,18 +232,31 @@ export default function ViewOrderDialog({
     doc.text(`Address: ${customer.address || "N/A"}`, 14, y)
     y += 8
 
-    const tableData = orders.map((o) => [
-      o.design,
-      o.color,
-      o.size,
-      `Php = ${o.price}`,
-      formatPaymentStatus(o.payment_status),
-      new Date(o.created_at || "").toLocaleDateString(),
-    ])
+    const hasSizeFee = orders.some((o) => getPlusSizeFee(o.size) > 0)
+    const tableHead = hasSizeFee
+      ? [["Design", "Color", "Size", "Size Fee", "Price", "Status", "Date"]]
+      : [["Design", "Color", "Size", "Price", "Status", "Date"]]
+    const tableData = orders.map((o) => {
+      const sizeFee = getPlusSizeFee(o.size)
+      const row = [
+        o.design,
+        o.color,
+        o.size,
+        `Php = ${o.price}`,
+        formatPaymentStatus(o.payment_status),
+        new Date(o.created_at || "").toLocaleDateString(),
+      ]
+
+      if (hasSizeFee) {
+        row.splice(3, 0, sizeFee > 0 ? `+ Php ${sizeFee}` : "--")
+      }
+
+      return row
+    })
 
     autoTable(doc, {
       startY: y,
-      head: [["Design", "Color", "Size", "Price", "Status", "Date"]],
+      head: tableHead,
       body: tableData,
       styles: {
         halign: "center",
@@ -260,17 +289,26 @@ export default function ViewOrderDialog({
   // Save Customer Info
   const handleSaveCustomer = async () => {
     try {
-      await supabase
+      const orderIds = customerOrders.map((order) => order.id)
+      const updateData = {
+        name: customerData.name,
+        phone: customerData.phone,
+        facebook: customerData.facebook,
+        chapter: customerData.chapter,
+        address: customerData.address,
+        batch: customerData.batch,
+        batch_folder: customerData.batch_folder,
+      }
+
+      const query = supabase
         .from("orders")
-        .update({
-          phone: customerData.phone,
-          facebook: customerData.facebook,
-          chapter: customerData.chapter,
-          address: customerData.address,
-          batch: customerData.batch,
-          batch_folder: customerData.batch_folder,
-        })
-        .eq("name", customerName)
+        .update(updateData)
+
+      const { error } = orderIds.length > 0
+        ? await query.in("id", orderIds)
+        : await query.eq("name", customerName)
+
+      if (error) throw error
 
       onEditCustomer(customerData)
       setEditingCustomer(false)
@@ -311,28 +349,35 @@ export default function ViewOrderDialog({
       size: newOrder.size,
       design: newOrder.design,
       payment_status: normalizedStatus,
-      price: Number(newOrder.price) || 0,
+      price: getCalculatedPrice(newOrder.price, newOrder.size),
+      downpayment: Number(newOrder.downpayment) || 0,
       is_defective: false,
       defective_note: "",
     }
 
-    const { error } = await supabase.from("orders").insert([
-      {
-        name: customerData.name,
-        phone: customerData.phone,
-        facebook: customerData.facebook,
-        chapter: customerData.chapter,
-        address: customerData.address,
-        batch: customerData.batch,
-        batch_folder: customerData.batch_folder,
-        color: newOrder.color,
-        size: newOrder.size,
-        design: newOrder.design,
-        payment_status: normalizedStatus,
-        price: Number(newOrder.price) || 0,
-        created_at: new Date().toISOString(),
-      },
-    ])
+    const insertOrder = {
+      name: customerData.name,
+      phone: customerData.phone,
+      facebook: customerData.facebook,
+      chapter: customerData.chapter,
+      address: customerData.address,
+      batch: customerData.batch,
+      batch_folder: customerData.batch_folder,
+      color: newOrder.color,
+      size: newOrder.size,
+      design: newOrder.design,
+      payment_status: normalizedStatus,
+      price: getCalculatedPrice(newOrder.price, newOrder.size),
+      downpayment: Number(newOrder.downpayment) || 0,
+      created_at: new Date().toISOString(),
+    }
+
+    let { error } = await supabase.from("orders").insert([insertOrder])
+    if (error && error.message.toLowerCase().includes("downpayment")) {
+      const { downpayment, ...orderWithoutDownpayment } = insertOrder
+      const retryResult = await supabase.from("orders").insert([orderWithoutDownpayment])
+      error = retryResult.error
+    }
 
     if (error) {
       toast({
@@ -363,6 +408,7 @@ export default function ViewOrderDialog({
       design: designs[0] || "Prologue",
       paymentStatus: "pending",
       price: "",
+      downpayment: "",
     })
 
     toast({ title: "Order added successfully!" })
@@ -499,6 +545,9 @@ export default function ViewOrderDialog({
 
   // Calculate total
   const totalPrice = customerOrders.reduce((sum, o) => sum + (o.price || 0), 0)
+  const newOrderSizeFee = getPlusSizeFee(newOrder.size)
+  const newOrderCalculatedPrice = getCalculatedPrice(newOrder.price, newOrder.size)
+  const newOrderBalance = getBalance(newOrder.price, newOrder.size, newOrder.downpayment)
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-6 overflow-y-auto">
@@ -639,13 +688,14 @@ export default function ViewOrderDialog({
               {customerOrders.map(order => {
                 const statusStyle = getPaymentStatusStyle(order.payment_status)
                 const StatusIcon = statusStyle.Icon
+                const sizeFee = getPlusSizeFee(order.size)
                 return (
                   <div
                     key={order.id}
                     className="p-4 border border-border rounded-xl bg-card hover:border-blue-300 transition-colors"
                   >
                     {/* Order Header */}
-                    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         {/* Design, Color, Size */}
                         <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -671,41 +721,54 @@ export default function ViewOrderDialog({
                           <span className={`text-xs px-2 py-1 rounded-full ${statusStyle.bg} ${statusStyle.text} flex items-center gap-1`}>
                             <StatusIcon className="w-3 h-3" /> {formatPaymentStatus(order.payment_status)}
                           </span>
+                          {sizeFee > 0 && (
+                            <span className="text-xs px-2 py-1 rounded-full bg-emerald-900/40 text-emerald-300 flex items-center gap-1">
+                              <Tag className="w-3 h-3" /> Plus size fee: Php {sizeFee}
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* Price */}
-                      <div className="text-right">
+                      <div className="text-right flex flex-col items-end gap-2">
                         <div className="text-lg font-bold text-green-600">P{order.price.toLocaleString()}</div>
-                      </div>
-                    </div>
+                        {sizeFee > 0 && (
+                          <div className="text-[11px] text-muted-foreground -mt-2">includes +Php {sizeFee}</div>
+                        )}
+                        {order.downpayment ? (
+                          <div className="text-[11px] text-blue-400 -mt-2">
+                            DP Php {order.downpayment.toLocaleString()}
+                          </div>
+                        ) : null}
 
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs flex items-center gap-1"
-                        onClick={() => setEditingOrder(order)}
-                      >
-                        <Pencil className="w-3 h-3" /> Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 border-blue-800 flex items-center gap-1"
-                        onClick={() => setShowStatusPopup(order.id)}
-                      >
-                        <RefreshCw className="w-3 h-3" /> Status
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs bg-red-900/30 hover:bg-red-900/50 text-red-400 border-red-800 flex items-center gap-1"
-                        onClick={() => setDeleteConfirmId(order.id)}
-                      >
-                        <Trash2 className="w-3 h-3" /> Delete
-                      </Button>
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-[11px] flex items-center gap-1"
+                            onClick={() => setEditingOrder(order)}
+                          >
+                            <Pencil className="w-3 h-3" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-[11px] bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 border-blue-800 flex items-center gap-1"
+                            onClick={() => setShowStatusPopup(order.id)}
+                          >
+                            <RefreshCw className="w-3 h-3" /> Issue
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-[11px] bg-red-900/30 hover:bg-red-900/50 text-red-400 border-red-800 flex items-center gap-1"
+                            onClick={() => setDeleteConfirmId(order.id)}
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )
@@ -794,15 +857,34 @@ export default function ViewOrderDialog({
                   </select>
                 </div>
 
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1">Price</label>
                   <input
                     type="number"
-                    placeholder="Enter price"
+                    placeholder="Base price"
                     className="w-full p-2 border border-input bg-card text-foreground rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
                     value={newOrder.price}
                     onChange={(e) => setNewOrder({ ...newOrder, price: e.target.value })}
                   />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {newOrderSizeFee > 0
+                      ? `+ Php ${newOrderSizeFee} size fee = Php ${newOrderCalculatedPrice.toLocaleString()}`
+                      : `Total: Php ${newOrderCalculatedPrice.toLocaleString()}`}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Downpayment</label>
+                  <input
+                    type="number"
+                    placeholder="Enter downpayment"
+                    className="w-full p-2 border border-input bg-card text-foreground rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    value={newOrder.downpayment}
+                    onChange={(e) => setNewOrder({ ...newOrder, downpayment: e.target.value })}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Balance: Php {newOrderBalance.toLocaleString()}
+                  </p>
                 </div>
               </div>
 

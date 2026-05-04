@@ -10,6 +10,7 @@ export interface Order {
   design: string
   qty?: number
   price: number
+  downpayment?: number
   payment_status: string
   created_at?: string
   deleted_at?: string
