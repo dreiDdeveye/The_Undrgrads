@@ -160,7 +160,7 @@ export default function DesignDistributionChart() {
                     <Cell
                       key={`cell-${index}`}
                       fill={COLORS[index % COLORS.length]}
-                      stroke={selectedDesign === entry.name ? "#000" : "#fff"}
+                      stroke={selectedDesign === entry.name ? "var(--foreground)" : "var(--background)"}
                       strokeWidth={selectedDesign === entry.name ? 3 : 1}
                       cursor="pointer"
                     />
@@ -275,24 +275,24 @@ export default function DesignDistributionChart() {
               whileHover={{
                 scale: 1.05,
                 y: -6,
-                boxShadow: "0 12px 25px rgba(255, 200, 0, 0.35)",
+                boxShadow: "0 12px 25px hsl(var(--theme-glow) / 0.28)",
                 transition: { type: "spring", stiffness: 200, damping: 12 },
               }}
-              className="relative overflow-hidden p-5 bg-gradient-to-br from-yellow-950/60 to-amber-950/60 border border-yellow-800 rounded-2xl shadow transition-all duration-300"
+              className="relative overflow-hidden rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 shadow transition-all duration-300"
             >
               {/* Medal icons */}
               <div className="absolute top-3 right-3">
                 {getMedalIcon(idx)}
               </div>
 
-              <p className="text-lg font-semibold text-yellow-200 mb-1">{cust.name}</p>
+              <p className="text-lg font-semibold text-amber-600 dark:text-yellow-200 mb-1">{cust.name}</p>
               <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
                 <Phone className="w-3.5 h-3.5" /> {cust.phone || "N/A"}
               </p>
               <p className="text-sm text-muted-foreground truncate mb-2 flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" /> {cust.address || "N/A"}
               </p>
-              <p className="mt-2 text-sm font-medium text-yellow-300 bg-yellow-900/40 px-3 py-1 rounded-full inline-flex items-center gap-1">
+              <p className="mt-2 text-sm font-medium text-amber-700 dark:text-yellow-300 bg-amber-500/15 px-3 py-1 rounded-full inline-flex items-center gap-1">
                 <ShoppingBag className="w-3.5 h-3.5" /> {cust.count} total orders
               </p>
             </motion.div>

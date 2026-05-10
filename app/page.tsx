@@ -322,87 +322,43 @@ export default function Home() {
       doc.setTextColor(0, 0, 0)
       startY += 8
 
-      // Group customer orders by design
-      const ordersByDesign: Record<string, any[]> = {}
-      items.forEach((o) => {
-        const design = o.design || "Unknown"
-        if (!ordersByDesign[design]) ordersByDesign[design] = []
-        ordersByDesign[design].push(o)
+      const customerOrders = [...items].sort((a, b) => {
+        const designCompare = (a.design || "").localeCompare(b.design || "")
+        if (designCompare !== 0) return designCompare
+        const colorCompare = (a.color || "").localeCompare(b.color || "")
+        if (colorCompare !== 0) return colorCompare
+        return sortSizes(a.size || "", b.size || "")
       })
 
-      // Sort designs alphabetically
-      const sortedDesigns = Object.keys(ordersByDesign).sort((a, b) => a.localeCompare(b))
+      const tableData = customerOrders.map((o) => [
+        o.design || "",
+        o.color || "",
+        o.size || "",
+        o.created_at ? new Date(o.created_at).toLocaleDateString() : "",
+        " ", // DTF checkbox
+        " ", // Tshirt checkbox
+      ])
 
-      sortedDesigns.forEach((design) => {
-        const designOrders = ordersByDesign[design].sort((a, b) => {
-          const colorCompare = (a.color || "").localeCompare(b.color || "")
-          if (colorCompare !== 0) return colorCompare
-          return sortSizes(a.size || "", b.size || "")
-        })
-
-        if (startY > 260) {
-          doc.addPage()
-          startY = 20
-        }
-
-        // Design sub-header
-        doc.setFontSize(9)
-        doc.setFont("helvetica", "bold")
-        doc.text(`Design: ${design}`, 14, startY)
-        doc.setFont("helvetica", "normal")
-        startY += 4
-
-        // Helper function to format status
-        const formatStatus = (order: any) => {
-          if (order.is_defective) return "Defective"
-          switch (order.payment_status?.toLowerCase()) {
-            case "fully paid":
-              return "For Shipment"
-            case "partially paid":
-              return "Partial"
-            case "awaiting_payment":
-              return "Confirmed - Unpaid"
-            case "pending":
-            default:
-              return "No Confirmation"
-          }
-        }
-
-        // Table data for this design
-        const tableData = designOrders.map((o) => [
-          o.color || "",
-          o.size || "",
-          o.quantity || 1,
-          formatStatus(o),
-          o.created_at ? new Date(o.created_at).toLocaleDateString() : "",
-          " ", // DTF checkbox
-          " ", // Tshirt checkbox
-        ])
-
-        autoTable(doc, {
-          head: [["Color", "Size", "Qty", "Status", "Date", "DTF", "Tshirt"]],
-          body: tableData,
-          startY,
-          theme: "grid",
-          styles: { fontSize: 8.5, halign: "center", cellPadding: 2 },
-          headStyles: { fillColor: [20, 40, 80], textColor: [255, 255, 255] },
-          alternateRowStyles: { fillColor: [235, 242, 245] },
-          margin: { left: 14, right: 14 },
-          columnStyles: {
-            0: { cellWidth: 42 },
-            1: { cellWidth: 18 },
-            2: { cellWidth: 14 },
-            3: { cellWidth: 38 },
-            4: { cellWidth: 28 },
-            5: { cellWidth: 20 },
-            6: { cellWidth: 22 },
-          },
-        })
-
-        startY = (doc as any).lastAutoTable.finalY + 5
+      autoTable(doc, {
+        head: [["Design", "Color", "Size", "Date", "DTF", "Tshirt"]],
+        body: tableData,
+        startY,
+        theme: "grid",
+        styles: { fontSize: 8.5, halign: "center", cellPadding: 2 },
+        headStyles: { fillColor: [20, 40, 80], textColor: [255, 255, 255] },
+        alternateRowStyles: { fillColor: [235, 242, 245] },
+        margin: { left: 14, right: 14 },
+        columnStyles: {
+          0: { cellWidth: 52 },
+          1: { cellWidth: 38 },
+          2: { cellWidth: 18 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 20 },
+          5: { cellWidth: 24 },
+        },
       })
 
-      startY += 6
+      startY = (doc as any).lastAutoTable.finalY + 11
     })
 
     doc.save("Customers_Orders.pdf")
@@ -631,8 +587,10 @@ export default function Home() {
       color: orderToTrash.color,
       size: orderToTrash.size,
       design: orderToTrash.design,
+      payment_method: orderToTrash.payment_method,
       payment_status: orderToTrash.payment_status,
       price: orderToTrash.price,
+      downpayment: orderToTrash.downpayment || 0,
       created_at: orderToTrash.created_at,
       defective_note: orderToTrash.defective_note,
       deleted_at: new Date().toISOString(),
@@ -673,6 +631,65 @@ export default function Home() {
       });
     }
   };
+
+  const handleDeleteCustomer = async (orderIds: number[]) => {
+    if (orderIds.length === 0) return
+
+    const ordersToTrash = orders.filter((order) => orderIds.includes(order.id))
+    if (ordersToTrash.length === 0) return
+
+    const trashOrdersData = ordersToTrash.map((order) => ({
+      name: order.name,
+      phone: order.phone,
+      facebook: order.facebook,
+      chapter: order.chapter,
+      address: order.address,
+      color: order.color,
+      size: order.size,
+      design: order.design,
+      payment_method: order.payment_method,
+      payment_status: order.payment_status,
+      price: order.price,
+      downpayment: order.downpayment || 0,
+      created_at: order.created_at,
+      defective_note: order.defective_note,
+      deleted_at: new Date().toISOString(),
+      is_defective: order.is_defective,
+      is_deleted: true,
+      is_trashed: true,
+      batch: order.batch,
+      batch_folder: order.batch_folder,
+    }))
+
+    try {
+      const { error: trashError } = await supabase
+        .from("trash_orders")
+        .insert(trashOrdersData)
+
+      if (trashError) throw trashError
+
+      const { error: deleteError } = await supabase
+        .from("orders")
+        .delete()
+        .in("id", orderIds)
+
+      if (deleteError) throw deleteError
+
+      setOrders((prev) => prev.filter((order) => !orderIds.includes(order.id)))
+      setShowViewOrderDialog(false)
+      setSelectedCustomer(null)
+      await fetchTrashOrders()
+
+      toast({ title: "Customer moved to trash." })
+    } catch (err: any) {
+      console.error("Error moving customer to trash:", err.message)
+      toast({
+        title: "Error moving customer to trash",
+        description: err.message,
+        variant: "destructive",
+      })
+    }
+  }
 
   const handleMarkDefective = async (orderId: number, note: string = "") => {
     const { error } = await supabase
@@ -756,6 +773,8 @@ export default function Home() {
           size: o.size,
           design: o.design,
           price: o.price,
+          downpayment: o.downpayment || 0,
+          payment_method: o.payment_method,
           payment_status: o.payment_status,
           defective_note: o.defective_note,
           is_defective: o.is_defective,
@@ -944,6 +963,7 @@ export default function Home() {
           await fetchOrders()
         }}
         onDeleteOrder={handleDeleteOrder}
+        onDeleteCustomer={handleDeleteCustomer}
         onEditOrder={() => {}}
         onMarkDefective={(orderId, note) => handleMarkDefective(orderId, note || "")}
         onEditCustomer={handleEditCustomer}
@@ -980,8 +1000,10 @@ export default function Home() {
                 size: orderToRestore.size,
                 design: orderToRestore.design,
                 price: orderToRestore.price,
+                downpayment: orderToRestore.downpayment || 0,
                 is_defective: orderToRestore.is_defective,
                 defective_note: orderToRestore.defective_note,
+                payment_method: orderToRestore.payment_method,
                 payment_status: orderToRestore.payment_status,
                 batch: orderToRestore.batch,
                 batch_folder: orderToRestore.batch_folder,
@@ -1031,8 +1053,10 @@ export default function Home() {
               size: o.size,
               design: o.design,
               price: o.price,
+              downpayment: o.downpayment || 0,
               is_defective: o.is_defective,
               defective_note: o.defective_note,
+              payment_method: o.payment_method,
               payment_status: o.payment_status,
               batch: o.batch,
               batch_folder: o.batch_folder,

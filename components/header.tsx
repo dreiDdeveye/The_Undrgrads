@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import ThemeToggle from "@/components/theme-toggle"
 import {
   PlusCircle,
   Palette,
@@ -51,7 +52,7 @@ export default function Header({
   onExportShippingInfo,
 }: HeaderProps) {
   return (
-    <header className="bg-card border-b border-border shadow-sm">
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-card/80 shadow-sm backdrop-blur-xl transition-colors duration-300">
       <div className="container mx-auto px-3 sm:px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
         {/* Logo + Title */}
         <div className="flex items-center gap-3 sm:gap-4">
@@ -66,7 +67,7 @@ export default function Header({
         </div>
 
         {/* Main Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           {/* Keep Add Order separate */}
           <Button
             onClick={onAddOrder}
@@ -156,6 +157,7 @@ export default function Header({
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+          <ThemeToggle />
         </div>
       </div>
     </header>

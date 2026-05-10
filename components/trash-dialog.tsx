@@ -15,6 +15,8 @@ export interface Order {
   design: string
   qty?: number
   price: number
+  downpayment?: number
+  payment_method?: string
   payment_status: "pending" | "partially paid" | "fully paid" | string
   created_at?: string
   deleted_at?: string

@@ -4,39 +4,41 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  color-scheme: light;
+  --background: oklch(0.982 0.006 250);
+  --foreground: oklch(0.19 0.018 260);
+  --card: oklch(1 0 0 / 0.82);
+  --card-foreground: oklch(0.19 0.018 260);
+  --popover: oklch(1 0 0 / 0.96);
+  --popover-foreground: oklch(0.19 0.018 260);
+  --primary: oklch(0.52 0.18 255);
+  --primary-foreground: oklch(0.99 0.003 250);
+  --secondary: oklch(0.94 0.012 250);
+  --secondary-foreground: oklch(0.24 0.02 260);
+  --muted: oklch(0.94 0.012 250);
+  --muted-foreground: oklch(0.48 0.022 260);
+  --accent: oklch(0.92 0.035 252);
+  --accent-foreground: oklch(0.24 0.045 255);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --border: oklch(0.86 0.018 250);
+  --input: oklch(0.84 0.02 250);
+  --ring: oklch(0.62 0.16 255);
+  --chart-1: oklch(0.64 0.22 35);
+  --chart-2: oklch(0.58 0.14 185);
+  --chart-3: oklch(0.52 0.17 260);
+  --chart-4: oklch(0.73 0.18 85);
+  --chart-5: oklch(0.68 0.18 325);
+  --theme-glow: 217 91% 60%;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.97 0.008 250);
+  --sidebar-foreground: oklch(0.19 0.018 260);
+  --sidebar-primary: oklch(0.52 0.18 255);
+  --sidebar-primary-foreground: oklch(0.99 0.003 250);
+  --sidebar-accent: oklch(0.92 0.035 252);
+  --sidebar-accent-foreground: oklch(0.24 0.045 255);
+  --sidebar-border: oklch(0.86 0.018 250);
+  --sidebar-ring: oklch(0.62 0.16 255);
 }
 
 @keyframes slide-left {
@@ -54,6 +56,7 @@
 
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.13 0.008 265);
   --foreground: oklch(0.93 0 0);
   --card: oklch(0.17 0.008 265);
@@ -78,6 +81,7 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+  --theme-glow: 199 89% 62%;
   --sidebar: oklch(0.15 0.008 265);
   --sidebar-foreground: oklch(0.93 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -133,16 +137,53 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    @apply bg-background;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
+    background:
+      radial-gradient(circle at top left, color-mix(in oklch, var(--accent) 26%, transparent), transparent 32rem),
+      radial-gradient(circle at bottom right, color-mix(in oklch, var(--primary) 12%, transparent), transparent 30rem),
+      var(--background);
+  }
+  body,
+  header,
+  main,
+  section,
+  div,
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td,
+  button,
+  input,
+  select,
+  textarea {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow, opacity;
+    transition-duration: 300ms;
+    transition-timing-function: ease;
   }
   select {
-    background-color: var(--card);
+    background-color: color-mix(in oklch, var(--background) 76%, var(--card));
     color: var(--foreground);
     border-color: var(--input);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
   }
   select option {
-    background-color: var(--card);
+    background-color: var(--popover);
     color: var(--foreground);
+  }
+}
+
+@layer components {
+  .theme-glass {
+    @apply border border-border/70 bg-card/80 shadow-sm shadow-black/5 backdrop-blur-xl;
+  }
+
+  .theme-field {
+    @apply border border-input bg-background/70 text-foreground shadow-xs backdrop-blur-sm;
   }
 }
