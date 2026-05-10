@@ -56,11 +56,18 @@ export default function Header({
       <div className="container mx-auto px-3 sm:px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
         {/* Logo + Title */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <img
-            src="/logo1.png"
-            alt="Logo"
-            className="h-10 w-10 sm:h-10 sm:w-10 object-contain"
-          />
+          <div className="relative h-10 w-10 shrink-0">
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="absolute inset-0 h-10 w-10 object-contain opacity-100 transition-opacity duration-300 ease-in-out dark:opacity-0"
+            />
+            <img
+              src="/logo1.png"
+              alt="Logo"
+              className="absolute inset-0 h-10 w-10 object-contain opacity-0 transition-opacity duration-300 ease-in-out dark:opacity-100"
+            />
+          </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             The Undergrads
           </h1>

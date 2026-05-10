@@ -16,7 +16,19 @@ export default function ThemeToggle() {
   }, [])
 
   const toggleTheme = () => {
-    setTheme(isDark ? "light" : "dark")
+    const nextTheme = isDark ? "light" : "dark"
+    const viewTransitionDocument = document as Document & {
+      startViewTransition?: (callback: () => void) => void
+    }
+
+    if (!viewTransitionDocument.startViewTransition) {
+      setTheme(nextTheme)
+      return
+    }
+
+    viewTransitionDocument.startViewTransition(() => {
+      setTheme(nextTheme)
+    })
   }
 
   return (
